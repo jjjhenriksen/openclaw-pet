@@ -8,6 +8,8 @@ The plugin reduces OpenClaw lifecycle events to animation names in the platform-
 
 The Windows WebView2 helper only permits navigation to that loopback origin. The macOS and Windows helpers accept the same required arguments: `port`, `size`, and `corner` (plus the optional `clickThrough` value supplied by the plugin).
 
+Both native helpers load the same renderer from the loopback server. If that renderer cannot reach `/state` for 10 consecutive seconds, its watchdog asks the native helper to exit so a Gateway crash cannot leave an orphaned pet running indefinitely.
+
 ## Setup
 
 1. Put `pet.json` and a 1536-pixel-wide `spritesheet.webp` with 208-pixel animation rows in a directory you control.
@@ -42,7 +44,7 @@ Example plugin config (use escaped backslashes in JSON on Windows):
 All platforms require Node.js/npm and the normal OpenClaw development dependencies installed by `npm install`.
 
 - macOS: Xcode Command Line Tools with `swiftc`. `npm run build:overlay` compiles `overlay/pet-overlay.swift` to `dist/pet-overlay-macos`.
-- Windows 11: the .NET 8 SDK. `npm run build:overlay` publishes a self-contained WPF helper for the current Node architecture to `dist/pet-overlay-win.exe`; Swift is not required. The Evergreen WebView2 Runtime is part of Windows 11, but stripped-down or managed installations may need Microsoft’s runtime installed separately.
+- Windows 11: the .NET 10 LTS SDK. `npm run build:overlay` publishes a self-contained WPF helper for the current Node architecture to `dist/pet-overlay-win.exe`; Swift is not required. The Evergreen WebView2 Runtime is part of Windows 11, but stripped-down or managed installations may need Microsoft’s runtime installed separately.
 - Other platforms: TypeScript still builds, while the native-overlay step prints a clear no-op message.
 
 Run the full validation commands with:
@@ -50,8 +52,12 @@ Run the full validation commands with:
 ```bash
 npm run build
 npm test
-npm run plugin:validate
+npm pack --dry-run
+openclaw plugins inspect openclaw-pet --runtime --json
+openclaw plugins doctor
 ```
+
+Run the two `openclaw` inspection commands after installing or linking the plugin. `openclaw plugins build` and `openclaw plugins validate` intentionally validate generated `defineToolPlugin` metadata and do not apply to this `definePluginEntry` service plugin. General static validation for `definePluginEntry` would be an upstream enhancement, not a blocker for this package.
 
 ## Windows behavior and limitations
 
@@ -61,3 +67,16 @@ The Windows helper uses a borderless WPF window, WebView2 composition rendering,
 - With the default `clickThrough: false`, drag anywhere on the pet window to reposition it temporarily.
 - With `clickThrough: true`, clicks pass through where Windows permits, but dragging is unavailable.
 - The build emits one architecture-specific executable. Rebuild on x64, ARM64, or x86 when distributing to a different architecture.
+
+Before release, manually smoke-test on Windows 11:
+
+- Launching the overlay does not move focus away from the foreground application.
+- Dragging the default overlay does not activate it or switch the foreground application.
+- With `clickThrough: true`, pointer input reaches an unrelated application underneath the overlay.
+- Stop the Gateway and confirm the helper disappears; force-terminate the Gateway and confirm the watchdog closes the helper within about 10 seconds.
+
+Before release, manually smoke-test on macOS:
+
+- The shared loopback renderer is transparent, animates, and remains draggable by default.
+- `clickThrough: true` passes input through and disables dragging.
+- Normal Gateway stop closes the helper, and the watchdog closes it after a forced Gateway termination.

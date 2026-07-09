@@ -1,6 +1,7 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { createServer, type RequestListener, type Server } from "node:http";
+import { createServer, type RequestListener } from "node:http";
+import type { AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ANIMATIONS, type Animation, type PetSnapshot } from "./pet-controller.js";
@@ -22,9 +23,36 @@ export type StartOverlayParams = {
   logger: { warn: (message: string) => void };
 };
 
-type StartOverlayRuntime = {
-  platform?: NodeJS.Platform;
-  distDir?: string;
+export type OverlayServerHandle = {
+  listening: boolean;
+  listen: (port: number, host: string, callback: () => void) => unknown;
+  address: () => AddressInfo | string | null;
+  close: (callback: (error?: Error) => void) => unknown;
+  closeAllConnections?: () => void;
+  on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  once: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  off: (event: string, listener: (...args: unknown[]) => void) => unknown;
+};
+
+export type OverlayChildHandle = {
+  stderr?: { on: (event: "data", listener: (chunk: Buffer) => void) => unknown } | null;
+  exitCode: number | null;
+  signalCode: NodeJS.Signals | null;
+  kill: (signal?: NodeJS.Signals | number) => boolean;
+  on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  once: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  off: (event: string, listener: (...args: unknown[]) => void) => unknown;
+};
+
+export type OverlayRuntime = {
+  platform: NodeJS.Platform;
+  distDir: string;
+  helperExists: (path: string) => boolean;
+  createHttpServer: (listener: RequestListener) => OverlayServerHandle;
+  spawnHelper: (executable: string, args: string[]) => OverlayChildHandle;
+  delay: (milliseconds: number) => Promise<void>;
+  terminateGraceMs: number;
+  forceKillWaitMs: number;
 };
 
 type OverlayState = {
@@ -32,18 +60,46 @@ type OverlayState = {
   changedAt: number;
 };
 
-const moduleDir = dirname(fileURLToPath(import.meta.url));
-let server: Server | undefined;
-let overlay: ChildProcess | undefined;
-let startPromise: Promise<void> | undefined;
-let stopPromise: Promise<void> | undefined;
-const emittedWarnings = new Set<string>();
+type HelperExit = {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+};
 
-function warnOnce(logger: StartOverlayParams["logger"], message: string): void {
-  if (emittedWarnings.has(message)) return;
-  emittedWarnings.add(message);
-  logger.warn(message);
+type ActiveHelper = {
+  child: OverlayChildHandle;
+  server: OverlayServerHandle;
+  logger: StartOverlayParams["logger"];
+  spawned: Promise<void>;
+  resolveSpawn: () => void;
+  rejectSpawn: (error: Error) => void;
+  exited: Promise<HelperExit>;
+  resolveExit: (result: HelperExit) => void;
+  didExit: boolean;
+  terminating: boolean;
+};
+
+const moduleDir = dirname(fileURLToPath(import.meta.url));
+const resolvedPromise = Promise.resolve();
+
+function defaultDelay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, milliseconds);
+    timer.unref();
+  });
 }
+
+const defaultRuntime: OverlayRuntime = {
+  platform: process.platform,
+  distDir: moduleDir,
+  helperExists: existsSync,
+  createHttpServer: (listener) => createServer(listener) as unknown as OverlayServerHandle,
+  spawnHelper: (executable, args) => spawn(executable, args, {
+    stdio: ["ignore", "ignore", "pipe"],
+  }) as unknown as OverlayChildHandle,
+  delay: defaultDelay,
+  terminateGraceMs: 2_000,
+  forceKillWaitMs: 2_000,
+};
 
 export function selectOverlayHelper(platform: NodeJS.Platform, distDir: string): OverlayHelper | undefined {
   if (platform === "darwin") return { executable: join(distDir, "pet-overlay-macos"), platformName: "macOS" };
@@ -88,13 +144,23 @@ function overlayHtml(): string {
     const context=canvas.getContext("2d");
     const sheet=new Image();
     sheet.src="/spritesheet.webp";
+    const watchdogMs=10000;
     let state={animation:"idle"};
     let animation="idle",frame=0,nextFrameAt=0,width=0,height=0;
+    let lastStateAt=Date.now(),shutdownRequested=false;
+    function checkWatchdog(){
+      if(Date.now()-lastStateAt<watchdogMs||shutdownRequested)return;
+      shutdownRequested=true;
+      location.href="openclaw-pet://watchdog-expired";
+    }
     async function poll(){
       try{
         const response=await fetch("/state",{cache:"no-store"});
-        if(response.ok) state=await response.json();
+        if(!response.ok) throw new Error("state unavailable");
+        state=await response.json();
+        lastStateAt=Date.now();
       }catch{}
+      if(shutdownRequested)return;
       setTimeout(poll,75);
     }
     function draw(time){
@@ -110,6 +176,7 @@ function overlayHtml(): string {
       }
       requestAnimationFrame(draw);
     }
+    setInterval(checkWatchdog,250);
     poll();
     requestAnimationFrame(draw);
   </script>
@@ -120,10 +187,7 @@ function overlayHtml(): string {
 function requestHandler(params: StartOverlayParams): RequestListener {
   return (req, res) => {
     const path = req.url?.split("?")[0];
-    const commonHeaders = {
-      "access-control-allow-origin": "*",
-      "x-content-type-options": "nosniff",
-    };
+    const commonHeaders = { "x-content-type-options": "nosniff" };
     if (path === "/") {
       res.writeHead(200, {
         ...commonHeaders,
@@ -145,140 +209,267 @@ function requestHandler(params: StartOverlayParams): RequestListener {
         res.writeHead(404, commonHeaders).end();
         return;
       }
-      res.writeHead(200, { ...commonHeaders, "content-type": "image/webp", "cache-control": "private, max-age=3600" });
-      res.end(readFileSync(file));
+      try {
+        res.writeHead(200, { ...commonHeaders, "content-type": "image/webp", "cache-control": "private, max-age=3600" });
+        res.end(readFileSync(file));
+      } catch {
+        if (!res.headersSent) res.writeHead(404, commonHeaders);
+        res.end();
+      }
       return;
     }
     res.writeHead(404, commonHeaders).end();
   };
 }
 
-async function listenOnLoopback(target: Server): Promise<number> {
-  await new Promise<void>((resolve, reject) => {
-    const onError = (error: Error) => reject(error);
-    target.once("error", onError);
-    target.listen(0, "127.0.0.1", () => {
-      target.off("error", onError);
-      resolve();
+export class OverlayService {
+  private readonly runtime: OverlayRuntime;
+  private server: OverlayServerHandle | undefined;
+  private helper: ActiveHelper | undefined;
+  private startPromise: Promise<void> | undefined;
+  private stopPromise: Promise<void> | undefined;
+  private closingServer: Promise<void> | undefined;
+  private closingTarget: OverlayServerHandle | undefined;
+  private stopRequested = false;
+  private readonly emittedWarnings = new Set<string>();
+
+  constructor(runtime: OverlayRuntime) {
+    this.runtime = runtime;
+  }
+
+  private warnOnce(logger: StartOverlayParams["logger"], message: string): void {
+    if (this.emittedWarnings.has(message)) return;
+    this.emittedWarnings.add(message);
+    logger.warn(message);
+  }
+
+  private async listenOnLoopback(target: OverlayServerHandle): Promise<number> {
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: unknown) => reject(error instanceof Error ? error : new Error(String(error)));
+      target.once("error", onError);
+      target.listen(0, "127.0.0.1", () => {
+        target.off("error", onError);
+        resolve();
+      });
     });
-  });
-  const address = target.address();
-  if (!address || typeof address === "string") throw new Error("overlay server did not receive a TCP port");
-  return address.port;
-}
+    const address = target.address();
+    if (!address || typeof address === "string") throw new Error("overlay server did not receive a TCP port");
+    return address.port;
+  }
 
-async function closeServer(target: Server | undefined = server): Promise<void> {
-  if (!target) return;
-  if (server === target) server = undefined;
-  if (!target.listening) return;
-  await new Promise<void>((resolve) => {
-    target.close(() => resolve());
-    target.closeAllConnections?.();
-  });
-}
+  private beginServerClose(target: OverlayServerHandle | undefined = this.server): Promise<void> {
+    if (!target) return this.closingServer ?? resolvedPromise;
+    if (this.closingTarget === target && this.closingServer) return this.closingServer;
+    if (this.closingServer) return this.closingServer.then(() => this.beginServerClose(target));
+    if (this.server === target) this.server = undefined;
 
-async function waitForSpawn(child: ChildProcess): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const onSpawn = () => {
-      child.off("error", onError);
-      resolve();
+    const pending = new Promise<void>((resolve) => {
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        resolve();
+      };
+      if (!target.listening) {
+        finish();
+        return;
+      }
+      try {
+        target.close(() => finish());
+        target.closeAllConnections?.();
+      } catch {
+        finish();
+      }
+    });
+    this.closingTarget = target;
+    this.closingServer = pending;
+    void pending.finally(() => {
+      if (this.closingServer === pending) {
+        this.closingServer = undefined;
+        this.closingTarget = undefined;
+      }
+    });
+    return pending;
+  }
+
+  private createActiveHelper(child: OverlayChildHandle, target: OverlayServerHandle, logger: StartOverlayParams["logger"]): ActiveHelper {
+    let resolveSpawn!: () => void;
+    let rejectSpawn!: (error: Error) => void;
+    let resolveExit!: (result: HelperExit) => void;
+    const active: ActiveHelper = {
+      child,
+      server: target,
+      logger,
+      spawned: new Promise<void>((resolve, reject) => { resolveSpawn = resolve; rejectSpawn = reject; }),
+      resolveSpawn: () => resolveSpawn(),
+      rejectSpawn: (error) => rejectSpawn(error),
+      exited: new Promise<HelperExit>((resolve) => { resolveExit = resolve; }),
+      resolveExit: (result) => resolveExit(result),
+      didExit: false,
+      terminating: false,
     };
-    const onError = (error: Error) => {
+
+    const onRuntimeError = (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`OpenClaw Pet overlay failed: ${message}`);
+    };
+    const onSpawnError = (error: unknown) => {
+      const failure = error instanceof Error ? error : new Error(String(error));
       child.off("spawn", onSpawn);
-      reject(error);
+      active.rejectSpawn(failure);
+      this.completeHelperExit(active, { code: null, signal: null });
     };
+    const onSpawn = () => {
+      child.off("error", onSpawnError);
+      child.on("error", onRuntimeError);
+      active.resolveSpawn();
+    };
+    const onExit = (code: unknown, signal: unknown) => {
+      child.off("error", onSpawnError);
+      child.off("error", onRuntimeError);
+      const exitCode = typeof code === "number" ? code : null;
+      const exitSignal = typeof signal === "string" ? signal as NodeJS.Signals : null;
+      this.completeHelperExit(active, { code: exitCode, signal: exitSignal });
+    };
+
     child.once("spawn", onSpawn);
-    child.once("error", onError);
-  });
-}
+    child.once("error", onSpawnError);
+    child.once("exit", onExit);
+    child.stderr?.on("data", (chunk: Buffer) => logger.warn(`OpenClaw Pet overlay: ${chunk.toString().trim()}`));
+    return active;
+  }
 
-async function terminateHelper(child: ChildProcess | undefined): Promise<void> {
-  if (!child || child.exitCode !== null || child.signalCode !== null) return;
-  const target = child;
-  await new Promise<void>((resolve) => {
-    const timeout = setTimeout(done, 2_000);
-    timeout.unref();
-    function done() {
-      clearTimeout(timeout);
-      target.off("exit", done);
-      target.off("error", done);
-      resolve();
+  private completeHelperExit(active: ActiveHelper, result: HelperExit): void {
+    if (active.didExit) return;
+    active.didExit = true;
+    active.resolveExit(result);
+    if (this.helper === active) this.helper = undefined;
+    if (!active.terminating && !result.signal && result.code && result.code !== 0) {
+      active.logger.warn(`OpenClaw Pet overlay exited with code ${result.code}.`);
     }
-    target.once("exit", done);
-    target.once("error", done);
-    if (!target.kill()) done();
-  });
+    void this.beginServerClose(active.server);
+  }
+
+  private signalHelper(active: ActiveHelper, signal: NodeJS.Signals): void {
+    try {
+      active.child.kill(signal);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      active.logger.warn(`OpenClaw Pet overlay could not receive ${signal}: ${message}`);
+    }
+  }
+
+  private async terminateHelper(active: ActiveHelper | undefined): Promise<void> {
+    if (!active || active.didExit) return;
+    active.terminating = true;
+    this.signalHelper(active, "SIGTERM");
+    const graceful = await Promise.race([
+      active.exited.then(() => true),
+      this.runtime.delay(this.runtime.terminateGraceMs).then(() => false),
+    ]);
+    if (graceful || active.didExit) return;
+
+    active.logger.warn("OpenClaw Pet overlay did not exit after SIGTERM; forcing termination.");
+    this.signalHelper(active, "SIGKILL");
+    const forced = await Promise.race([
+      active.exited.then(() => true),
+      this.runtime.delay(this.runtime.forceKillWaitMs).then(() => false),
+    ]);
+    if (!forced && !active.didExit) {
+      active.logger.warn("OpenClaw Pet overlay termination could not be confirmed; a new helper will not start until it exits.");
+    }
+  }
+
+  private async startOnce(params: StartOverlayParams): Promise<void> {
+    const helper = selectOverlayHelper(this.runtime.platform, this.runtime.distDir);
+    if (!helper) {
+      this.warnOnce(params.logger, `OpenClaw Pet desktop overlay is not supported on ${this.runtime.platform}; supported platforms are macOS and Windows 11.`);
+      return;
+    }
+    if (!this.runtime.helperExists(helper.executable)) {
+      this.warnOnce(params.logger, `OpenClaw Pet ${helper.platformName} overlay helper is missing; run npm run build:overlay on ${helper.platformName}.`);
+      return;
+    }
+
+    const localServer = this.runtime.createHttpServer(requestHandler(params));
+    this.server = localServer;
+    let active: ActiveHelper | undefined;
+    try {
+      const port = await this.listenOnLoopback(localServer);
+      localServer.on("error", (error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        params.logger.warn(`OpenClaw Pet overlay server error: ${message}`);
+      });
+      if (this.stopRequested) {
+        await this.beginServerClose(localServer);
+        return;
+      }
+
+      const command = buildOverlayCommand(this.runtime.platform, this.runtime.distDir, { port, ...params });
+      if (!command) throw new Error(`unsupported platform ${this.runtime.platform}`);
+      const child = this.runtime.spawnHelper(command.executable, command.args);
+      active = this.createActiveHelper(child, localServer, params.logger);
+      this.helper = active;
+      await active.spawned;
+    } catch (error) {
+      if (active && !active.didExit) await this.terminateHelper(active);
+      await this.beginServerClose(localServer);
+      const message = error instanceof Error ? error.message : String(error);
+      params.logger.warn(`OpenClaw Pet overlay failed to launch: ${message}`);
+    }
+  }
+
+  async start(params: StartOverlayParams): Promise<void> {
+    if (this.startPromise) return this.startPromise;
+    if (this.stopPromise) {
+      await this.stopPromise;
+      return this.start(params);
+    }
+    if (this.closingServer) {
+      await this.closingServer;
+      return this.start(params);
+    }
+    if (this.server || this.helper) return;
+
+    this.stopRequested = false;
+    const pending = this.startOnce(params);
+    this.startPromise = pending;
+    try {
+      await pending;
+    } finally {
+      if (this.startPromise === pending) this.startPromise = undefined;
+    }
+  }
+
+  async stop(): Promise<void> {
+    this.stopRequested = true;
+    if (this.stopPromise) return this.stopPromise;
+    const pending = (async () => {
+      if (this.startPromise) await this.startPromise;
+      const active = this.helper;
+      const closing = this.beginServerClose();
+      await Promise.all([this.terminateHelper(active), closing]);
+      if (this.closingServer) await this.closingServer;
+    })();
+    this.stopPromise = pending;
+    try {
+      await pending;
+    } finally {
+      if (this.stopPromise === pending) this.stopPromise = undefined;
+    }
+  }
 }
 
-async function startOverlayOnce(params: StartOverlayParams, runtime: StartOverlayRuntime): Promise<void> {
-  const platform = runtime.platform ?? process.platform;
-  const helper = selectOverlayHelper(platform, runtime.distDir ?? moduleDir);
-  if (!helper) {
-    warnOnce(params.logger, `OpenClaw Pet desktop overlay is not supported on ${platform}; supported platforms are macOS and Windows 11.`);
-    return;
-  }
-  if (!existsSync(helper.executable)) {
-    warnOnce(params.logger, `OpenClaw Pet ${helper.platformName} overlay helper is missing; run npm run build:overlay on ${helper.platformName}.`);
-    return;
-  }
-
-  const localServer = createServer(requestHandler(params));
-  server = localServer;
-  let child: ChildProcess | undefined;
-  try {
-    const port = await listenOnLoopback(localServer);
-    localServer.on("error", (error) => params.logger.warn(`OpenClaw Pet overlay server error: ${error.message}`));
-    const command = buildOverlayCommand(platform, runtime.distDir ?? moduleDir, { port, ...params });
-    if (!command) throw new Error(`unsupported platform ${platform}`);
-    child = spawn(command.executable, command.args, { detached: true, stdio: ["ignore", "ignore", "pipe"] });
-    overlay = child;
-    await waitForSpawn(child);
-    child.stderr?.on("data", (chunk: Buffer) => params.logger.warn(`OpenClaw Pet overlay: ${chunk.toString().trim()}`));
-    child.on("error", (error) => params.logger.warn(`OpenClaw Pet overlay failed: ${error.message}`));
-    child.on("exit", (code, signal) => {
-      if (overlay === child) overlay = undefined;
-      if (!signal && code && code !== 0) params.logger.warn(`OpenClaw Pet overlay exited with code ${code}.`);
-      void closeServer(localServer);
-    });
-    child.unref();
-  } catch (error) {
-    if (overlay === child) overlay = undefined;
-    await terminateHelper(child);
-    await closeServer(localServer);
-    const message = error instanceof Error ? error.message : String(error);
-    params.logger.warn(`OpenClaw Pet overlay failed to launch: ${message}`);
-  }
+export function createOverlayService(overrides: Partial<OverlayRuntime> = {}): OverlayService {
+  return new OverlayService({ ...defaultRuntime, ...overrides });
 }
 
-export async function startOverlay(params: StartOverlayParams, runtime: StartOverlayRuntime = {}): Promise<void> {
-  if (startPromise) return startPromise;
-  if (stopPromise) {
-    await stopPromise;
-    return startOverlay(params, runtime);
-  }
-  if (server || overlay) return;
+const overlayService = createOverlayService();
 
-  const pending = startOverlayOnce(params, runtime);
-  startPromise = pending;
-  try {
-    await pending;
-  } finally {
-    if (startPromise === pending) startPromise = undefined;
-  }
+export async function startOverlay(params: StartOverlayParams): Promise<void> {
+  await overlayService.start(params);
 }
 
 export async function stopOverlay(): Promise<void> {
-  if (stopPromise) return stopPromise;
-  const pending = (async () => {
-    if (startPromise) await startPromise;
-    const child = overlay;
-    overlay = undefined;
-    await Promise.all([terminateHelper(child), closeServer()]);
-  })();
-  stopPromise = pending;
-  try {
-    await pending;
-  } finally {
-    if (stopPromise === pending) stopPromise = undefined;
-  }
+  await overlayService.stop();
 }

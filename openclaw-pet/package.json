@@ -6,9 +6,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && npm run build:overlay",
     "build:overlay": "node ./scripts/build-overlay.mjs",
-    "plugin:build": "npm run build && openclaw plugins build --entry ./dist/index.js",
-    "plugin:validate": "npm run build && openclaw plugins validate --entry ./dist/index.js",
-    "test": "vitest run --config ./vitest.config.ts"
+    "test": "vitest run --config ./vitest.config.ts",
+    "pack:check": "npm pack --dry-run",
+    "validate": "npm run build && npm test && npm run pack:check"
   },
   "files": [
     "dist",

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -79,6 +80,11 @@ internal sealed class OverlayWindow : Window
     private const long LayeredStyle = 0x00080000L;
     private const uint NonClientLeftButtonDown = 0x00A1;
     private const int CaptionHitTest = 2;
+    private const uint NoSizePositionFlag = 0x0001;
+    private const uint NoMovePositionFlag = 0x0002;
+    private const uint NoZOrderPositionFlag = 0x0004;
+    private const uint NoActivatePositionFlag = 0x0010;
+    private const uint FrameChangedPositionFlag = 0x0020;
     private readonly OverlayArguments options;
     private readonly WebView2CompositionControl webView;
     private readonly Uri origin;
@@ -144,9 +150,20 @@ internal sealed class OverlayWindow : Window
     private void ConfigureNativeWindow(object? sender, EventArgs eventArgs)
     {
         var handle = new WindowInteropHelper(this).Handle;
-        var styles = GetWindowLongPointer(handle, ExtendedStyleIndex).ToInt64() | NoActivateStyle | ToolWindowStyle;
+        var styles = ReadWindowLongPointer(handle, ExtendedStyleIndex).ToInt64() | NoActivateStyle | ToolWindowStyle;
         if (options.ClickThrough) styles |= TransparentStyle | LayeredStyle;
-        SetWindowLongPointer(handle, ExtendedStyleIndex, new IntPtr(styles));
+        WriteWindowLongPointer(handle, ExtendedStyleIndex, new IntPtr(styles));
+        if (!SetWindowPos(
+                handle,
+                IntPtr.Zero,
+                0,
+                0,
+                0,
+                0,
+                NoSizePositionFlag | NoMovePositionFlag | NoZOrderPositionFlag | NoActivatePositionFlag | FrameChangedPositionFlag))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not refresh OpenClaw Pet window styles.");
+        }
 
         var source = HwndSource.FromHwnd(handle);
         source?.AddHook((IntPtr window, int message, IntPtr wParam, IntPtr lParam, ref bool handled) =>
@@ -191,7 +208,18 @@ internal sealed class OverlayWindow : Window
             core.Settings.IsZoomControlEnabled = false;
             core.NavigationStarting += (_, navigation) =>
             {
-                if (!Uri.TryCreate(navigation.Uri, UriKind.Absolute, out var target) ||
+                if (!Uri.TryCreate(navigation.Uri, UriKind.Absolute, out var target))
+                {
+                    navigation.Cancel = true;
+                    return;
+                }
+                if (target.Scheme == "openclaw-pet" && target.Host == "watchdog-expired")
+                {
+                    navigation.Cancel = true;
+                    Dispatcher.BeginInvoke(() => Application.Current.Shutdown(0));
+                    return;
+                }
+                if (
                     target.Scheme != origin.Scheme ||
                     target.Host != origin.Host ||
                     target.Port != origin.Port)
@@ -216,23 +244,55 @@ internal sealed class OverlayWindow : Window
         }
     }
 
-    private static IntPtr GetWindowLongPointer(IntPtr window, int index) =>
-        IntPtr.Size == 8 ? GetWindowLongPointer64(window, index) : new IntPtr(GetWindowLong32(window, index));
+    private static IntPtr ReadWindowLongPointer(IntPtr window, int index)
+    {
+        Marshal.SetLastPInvokeError(0);
+        var result = IntPtr.Size == 8
+            ? GetWindowLongPointer64(window, index)
+            : new IntPtr(GetWindowLong32(window, index));
+        var error = Marshal.GetLastPInvokeError();
+        if (result == IntPtr.Zero && error != 0)
+        {
+            throw new Win32Exception(error, "Could not read OpenClaw Pet window styles.");
+        }
+        return result;
+    }
 
-    private static IntPtr SetWindowLongPointer(IntPtr window, int index, IntPtr value) =>
-        IntPtr.Size == 8 ? SetWindowLongPointer64(window, index, value) : new IntPtr(SetWindowLong32(window, index, value.ToInt32()));
+    private static void WriteWindowLongPointer(IntPtr window, int index, IntPtr value)
+    {
+        Marshal.SetLastPInvokeError(0);
+        var previous = IntPtr.Size == 8
+            ? SetWindowLongPointer64(window, index, value)
+            : new IntPtr(SetWindowLong32(window, index, value.ToInt32()));
+        var error = Marshal.GetLastPInvokeError();
+        if (previous == IntPtr.Zero && error != 0)
+        {
+            throw new Win32Exception(error, "Could not apply OpenClaw Pet window styles.");
+        }
+    }
 
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
     private static extern int GetWindowLong32(IntPtr window, int index);
 
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
     private static extern IntPtr GetWindowLongPointer64(IntPtr window, int index);
 
-    [DllImport("user32.dll", EntryPoint = "SetWindowLongW")]
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongW", SetLastError = true)]
     private static extern int SetWindowLong32(IntPtr window, int index, int value);
 
-    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
     private static extern IntPtr SetWindowLongPointer64(IntPtr window, int index, IntPtr value);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        IntPtr window,
+        IntPtr insertAfter,
+        int x,
+        int y,
+        int width,
+        int height,
+        uint flags);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
