@@ -95,8 +95,8 @@ internal sealed class OverlayWindow : Window
         origin = new Uri($"http://127.0.0.1:{options.Port}/");
 
         Title = "OpenClaw Pet";
-        Width = options.Size;
-        Height = options.Size;
+        Width = Math.Max(options.Size + 96, 320);
+        Height = Math.Max(options.Size, 160);
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true;
@@ -110,7 +110,7 @@ internal sealed class OverlayWindow : Window
         {
             DefaultBackgroundColor = System.Drawing.Color.Transparent,
             Focusable = false,
-            IsHitTestVisible = false,
+            IsHitTestVisible = true,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
         };
@@ -123,6 +123,10 @@ internal sealed class OverlayWindow : Window
             {
                 Background = Brushes.Transparent,
                 Cursor = Cursors.SizeAll,
+                Width = options.Size,
+                Height = options.Size,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom,
             };
             dragSurface.MouseLeftButtonDown += BeginWindowDrag;
             root.Children.Add(dragSurface);

@@ -32,7 +32,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
     api.registerGatewayMethod("openclaw-pet.reset", async ({ respond }) => { await launchOverlay(process.env.TMPDIR ?? "/tmp"); respond(true, pet.reset()); }, { scope: "operator.write" });
 
     api.on("model_call_started", () => { void launchOverlay(process.env.TMPDIR ?? "/tmp"); pet.modelStarted(); });
-    api.on("before_tool_call", (event) => { void launchOverlay(process.env.TMPDIR ?? "/tmp"); pet.toolStarted(event.toolName); });
+    api.on("before_tool_call", (event) => { void launchOverlay(process.env.TMPDIR ?? "/tmp"); pet.toolStarted(safeToolName({ toolName: event.toolName })); });
     api.on("after_tool_call", (event) => pet.toolFinished(Boolean(event.error)));
     api.on("agent_end", (event) => pet.agentEnded(event.success === false));
     api.on("gateway_start", async () => { await launchOverlay(process.env.TMPDIR ?? "/tmp"); });

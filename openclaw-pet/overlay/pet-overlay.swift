@@ -38,9 +38,10 @@ let frame = NSScreen.main?.visibleFrame ?? .zero
 let edge: CGFloat = 20
 let x = corner.contains("left") ? frame.minX + edge : frame.maxX - CGFloat(size) - edge
 let y = corner.contains("top") ? frame.maxY - CGFloat(size) - edge : frame.minY + edge
-let panelWidth = max(CGFloat(size), 320)
+let panelWidth = max(CGFloat(size) + 96, 320)
 let panelHeight = max(CGFloat(size), 160)
-let panel = NSPanel(contentRect: NSRect(x: x - (panelWidth - CGFloat(size)), y: y, width: panelWidth, height: panelHeight), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+let panelX = corner.contains("left") ? x : x - (panelWidth - CGFloat(size))
+let panel = NSPanel(contentRect: NSRect(x: panelX, y: y, width: panelWidth, height: panelHeight), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
 panel.level = NSWindow.Level.floating; panel.collectionBehavior = [NSWindow.CollectionBehavior.canJoinAllSpaces, NSWindow.CollectionBehavior.fullScreenAuxiliary, NSWindow.CollectionBehavior.stationary]
 panel.isOpaque = false; panel.backgroundColor = NSColor.clear; panel.hasShadow = false; panel.ignoresMouseEvents = clickThrough
 let web = WKWebView(frame: panel.contentView!.bounds); web.setValue(false, forKey: "drawsBackground")

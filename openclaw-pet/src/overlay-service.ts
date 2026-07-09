@@ -4,7 +4,7 @@ import { createServer, type RequestListener } from "node:http";
 import type { AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ANIMATIONS, type Animation, type PetSnapshot } from "./pet-controller.js";
+import { ANIMATIONS, type ActivityItem, type Animation, type PetSnapshot } from "./pet-controller.js";
 
 export type OverlayHelper = {
   executable: string;
@@ -58,6 +58,8 @@ export type OverlayRuntime = {
 type OverlayState = {
   animation: Animation;
   changedAt: number;
+  activityLabel: string;
+  activity: Array<Pick<ActivityItem, "id" | "label" | "tone">>;
 };
 
 type HelperExit = {
@@ -121,10 +123,15 @@ export function buildOverlayCommand(
 }
 
 export function toOverlayState(snapshot: PetSnapshot): OverlayState {
-  return { animation: snapshot.animation, changedAt: snapshot.changedAt };
+  return {
+    animation: snapshot.animation,
+    changedAt: snapshot.changedAt,
+    activityLabel: snapshot.activityLabel,
+    activity: snapshot.activity.map(({ id, label, tone }) => ({ id, label, tone })),
+  };
 }
 
-function overlayHtml(): string {
+function overlayHtml(size: number): string {
   const animations = JSON.stringify(ANIMATIONS).replaceAll("<", "\\u003c");
   return `<!doctype html>
 <html>
@@ -132,22 +139,57 @@ function overlayHtml(): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    html,body{width:100%;height:100%;margin:0;background:transparent;overflow:hidden;user-select:none}
-    canvas{width:100vw;height:100vh;display:block;image-rendering:pixelated;pointer-events:none}
+    html,body{width:100%;height:100%;margin:0;background:transparent;overflow:hidden;user-select:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    #activity{box-sizing:border-box;position:absolute;left:8px;bottom:8px;width:calc(100% - ${size}px - 12px);padding:9px 10px;border-radius:11px;background:rgba(27,29,31,.94);color:#f5f5f5;box-shadow:0 2px 8px rgba(0,0,0,.26)}
+    #head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;letter-spacing:.01em}
+    button{border:0;background:transparent;color:#b9c5ff;font:inherit;padding:0;cursor:pointer}
+    ul{list-style:none;margin:7px 0 0;padding:0;display:grid;gap:5px}
+    .item{display:flex;align-items:center;gap:6px;font-size:11px;line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .dot{width:6px;height:6px;border-radius:50%;background:#9ca3af;flex:0 0 auto}
+    .active .dot{background:#8ab4ff}.success .dot{background:#65d6a0}.error .dot{background:#f38b8b}
+    .collapsed li:nth-child(n+3){display:none}
+    canvas{position:absolute;right:0;bottom:0;width:${size}px;height:${size}px;display:block;image-rendering:pixelated;pointer-events:none}
   </style>
 </head>
 <body>
+  <section id="activity" aria-live="polite">
+    <div id="head"><span id="status">Ready</span><button id="toggle" aria-expanded="true">Hide</button></div>
+    <ul id="events"></ul>
+  </section>
   <canvas></canvas>
   <script>
     const animations=${animations};
     const canvas=document.querySelector("canvas");
     const context=canvas.getContext("2d");
+    const label=document.querySelector("#status");
+    const events=document.querySelector("#events");
+    const activityPanel=document.querySelector("#activity");
+    const toggle=document.querySelector("#toggle");
     const sheet=new Image();
     sheet.src="/spritesheet.webp";
     const watchdogMs=10000;
-    let state={animation:"idle"};
+    let state={animation:"idle",activityLabel:"Ready",activity:[]};
     let animation="idle",frame=0,nextFrameAt=0,width=0,height=0;
     let lastStateAt=Date.now(),shutdownRequested=false;
+    let collapsed=false;
+    toggle.onclick=()=>{
+      collapsed=!collapsed;
+      activityPanel.classList.toggle("collapsed",collapsed);
+      toggle.textContent=collapsed?"Show":"Hide";
+      toggle.setAttribute("aria-expanded",String(!collapsed));
+    };
+    function renderActivity(items){
+      events.replaceChildren(...(items||[]).map(item=>{
+        const row=document.createElement("li");
+        row.className="item "+item.tone;
+        const dot=document.createElement("span");
+        dot.className="dot";
+        const text=document.createElement("span");
+        text.textContent=item.label;
+        row.append(dot,text);
+        return row;
+      }));
+    }
     function checkWatchdog(){
       if(Date.now()-lastStateAt<watchdogMs||shutdownRequested)return;
       shutdownRequested=true;
@@ -158,6 +200,8 @@ function overlayHtml(): string {
         const response=await fetch("/state",{cache:"no-store"});
         if(!response.ok) throw new Error("state unavailable");
         state=await response.json();
+        label.textContent=state.activityLabel||"Ready";
+        renderActivity(state.activity);
         lastStateAt=Date.now();
       }catch{}
       if(shutdownRequested)return;
@@ -168,7 +212,8 @@ function overlayHtml(): string {
       if(animation!==state.animation){animation=state.animation;frame=0;nextFrameAt=time;}
       if(time>=nextFrameAt){frame=(frame+1)%next.frames;nextFrameAt=time+next.durations[frame];}
       if(sheet.complete&&sheet.naturalWidth){
-        if(width!==innerWidth||height!==innerHeight){width=canvas.width=innerWidth;height=canvas.height=innerHeight;}
+        const nextWidth=canvas.clientWidth,nextHeight=canvas.clientHeight;
+        if(width!==nextWidth||height!==nextHeight){width=canvas.width=nextWidth;height=canvas.height=nextHeight;}
         context.clearRect(0,0,width,height);
         context.imageSmoothingEnabled=false;
         const scale=Math.min(width/192,height/208),petWidth=192*scale,petHeight=208*scale;
@@ -195,7 +240,7 @@ function requestHandler(params: StartOverlayParams): RequestListener {
         "content-security-policy": "default-src 'none'; connect-src 'self'; img-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'",
         "cache-control": "no-store",
       });
-      res.end(overlayHtml());
+      res.end(overlayHtml(params.size));
       return;
     }
     if (path === "/state") {

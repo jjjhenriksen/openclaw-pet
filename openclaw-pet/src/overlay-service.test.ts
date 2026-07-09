@@ -19,6 +19,10 @@ const snapshot: PetSnapshot = {
   animation: "review",
   changedAt: 1234,
   activeRuns: 1,
+  activityCount: 2,
+  lastEvent: "must not cross the overlay protocol",
+  activityLabel: "Running safe-tool",
+  activity: [{ id: 7, label: "Running safe-tool", tone: "active", at: 1200 }],
   lastError: "must not cross the overlay protocol",
   message: "must not cross the overlay protocol",
 };
@@ -289,12 +293,18 @@ describe("overlay lifecycle", () => {
     expect(body).toContain("const watchdogMs=10000");
     expect(body).toContain("setInterval(checkWatchdog,250)");
     expect(body).toContain("openclaw-pet://watchdog-expired");
+    expect(body).toContain("renderActivity(state.activity)");
     await service.stop();
   });
 });
 
 describe("overlay privacy boundary", () => {
   it("exposes only renderer state", () => {
-    expect(toOverlayState(snapshot)).toEqual({ animation: "review", changedAt: 1234 });
+    expect(toOverlayState(snapshot)).toEqual({
+      animation: "review",
+      changedAt: 1234,
+      activityLabel: "Running safe-tool",
+      activity: [{ id: 7, label: "Running safe-tool", tone: "active" }],
+    });
   });
 });
