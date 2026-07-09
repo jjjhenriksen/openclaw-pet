@@ -14,7 +14,7 @@ export const ANIMATIONS = {
 } as const;
 
 export type Animation = keyof typeof ANIMATIONS;
-export type PetConfig = { assetDir?: string; enabled?: boolean; idleDelayMs?: number; scope?: "global"; overlay?: { enabled?: boolean; size?: number; corner?: "bottom-right" | "bottom-left" | "top-right" | "top-left" } };
+export type PetConfig = { assetDir?: string; enabled?: boolean; idleDelayMs?: number; scope?: "global"; overlay?: { enabled?: boolean; size?: number; corner?: "bottom-right" | "bottom-left" | "top-right" | "top-left"; clickThrough?: boolean } };
 export type ActivityItem = { id: number; label: string; tone: "active" | "success" | "error" | "neutral"; at: number };
 export type PetSnapshot = { valid: boolean; assetDir?: string; animation: Animation; changedAt: number; activeRuns: number; activityCount: number; lastEvent: string; activityLabel: string; activity: ActivityItem[]; lastError?: string; message: string };
 

@@ -2,6 +2,8 @@
 openclaw-pet/dist/
 openclaw-pet/node_modules/
 openclaw-pet/*.tgz
+openclaw-pet/overlay/windows/bin/
+openclaw-pet/overlay/windows/obj/
 
 # Local pet-generation runs and supplied pet art stay private by default
 .pet-runs/

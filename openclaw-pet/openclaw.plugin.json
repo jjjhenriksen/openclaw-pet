@@ -17,7 +17,8 @@
         "properties": {
           "enabled": { "type": "boolean", "default": true },
           "size": { "type": "integer", "minimum": 96, "maximum": 768, "default": 224 },
-          "corner": { "type": "string", "enum": ["bottom-right", "bottom-left", "top-right", "top-left"], "default": "bottom-right" }
+          "corner": { "type": "string", "enum": ["bottom-right", "bottom-left", "top-right", "top-left"], "default": "bottom-right" },
+          "clickThrough": { "type": "boolean", "default": false, "description": "Pass pointer input through the pet. Click-through pets cannot be dragged." }
         }
       }
     },
