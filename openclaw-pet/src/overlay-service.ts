@@ -23,6 +23,7 @@ export type StartOverlayParams = {
   assets: DisplaySourceAsset[];
   size: number;
   corner: string;
+  showStatus?: boolean;
   clickThrough?: boolean;
   windowOffset?: { x: number; y: number };
   getSnapshot: () => DisplaySnapshot;
@@ -125,7 +126,7 @@ export function selectOverlayHelper(platform: NodeJS.Platform, distDir: string):
 export function buildOverlayCommand(
   platform: NodeJS.Platform,
   distDir: string,
-  params: Pick<StartOverlayParams, "size" | "corner" | "clickThrough" | "windowOffset"> & { port: number; sourceCount: number },
+  params: Pick<StartOverlayParams, "size" | "corner" | "showStatus" | "clickThrough" | "windowOffset"> & { port: number; sourceCount: number },
 ): OverlayCommand | undefined {
   const helper = selectOverlayHelper(platform, distDir);
   if (!helper) return undefined;
@@ -140,6 +141,7 @@ export function buildOverlayCommand(
       String(params.sourceCount),
       String(offset.x),
       String(offset.y),
+      String(params.showStatus ?? true),
     ],
   };
 }
@@ -151,10 +153,11 @@ export function normalizeOverlaySize(value: unknown): number | undefined {
     : undefined;
 }
 
-export function calculateOverlayDimensions(size: number, sourceCount: number): { width: number; height: number } {
+export function calculateOverlayDimensions(size: number, sourceCount: number, showStatus = true): { width: number; height: number } {
+  const petWidth = size * Math.max(1, sourceCount);
   return {
-    width: Math.max(size * Math.max(1, sourceCount) + OVERLAY_ACTIVITY_WIDTH, 320),
-    height: Math.max(size, 160),
+    width: showStatus ? Math.max(petWidth + OVERLAY_ACTIVITY_WIDTH, 320) : petWidth,
+    height: showStatus ? Math.max(size, 160) : size,
   };
 }
 
@@ -185,7 +188,7 @@ function effectiveWindowOffset(params: Pick<StartOverlayParams, "assets" | "getW
   return params.getWindowOffset?.(sourceId) ?? params.windowOffset ?? { x: 0, y: 0 };
 }
 
-function overlayHtml(size: number, sourceCount: number): string {
+function overlayHtml(size: number, sourceCount: number, showStatus: boolean): string {
   const animations = JSON.stringify(ANIMATIONS).replaceAll("<", "\\u003c");
   return `<!doctype html>
 <html>
@@ -195,7 +198,7 @@ function overlayHtml(size: number, sourceCount: number): string {
   <style>
     :root{--pet-size:${size}px}
     html,body{width:100%;height:100%;margin:0;background:transparent;overflow:hidden;user-select:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    #activity{box-sizing:border-box;position:absolute;left:8px;bottom:8px;width:204px;max-height:calc(100% - 16px);overflow:hidden;padding:9px 10px;border-radius:11px;background:rgba(27,29,31,.94);color:#f5f5f5;box-shadow:0 2px 8px rgba(0,0,0,.26)}
+    #activity{display:${showStatus ? "block" : "none"};box-sizing:border-box;position:absolute;left:8px;bottom:8px;width:204px;max-height:calc(100% - 16px);overflow:hidden;padding:9px 10px;border-radius:11px;background:rgba(27,29,31,.94);color:#f5f5f5;box-shadow:0 2px 8px rgba(0,0,0,.26)}
     #head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;letter-spacing:.01em}
     button{border:0;background:transparent;color:#b9c5ff;font:inherit;padding:0;cursor:pointer}
     ul{list-style:none;margin:7px 0 0;padding:0;display:grid;gap:5px}
@@ -351,7 +354,7 @@ function requestHandler(params: StartOverlayParams): RequestListener {
         "content-security-policy": "default-src 'none'; connect-src 'self'; img-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'",
         "cache-control": "no-store",
       });
-      res.end(overlayHtml(effectiveOverlaySize(params), params.assets.length));
+      res.end(overlayHtml(effectiveOverlaySize(params), params.assets.length, params.showStatus ?? true));
       return;
     }
     if (path === "/state") {
@@ -634,13 +637,14 @@ function overlayDisplayKey(params: StartOverlayParams): string {
   return JSON.stringify({
     assets: params.assets.map(({ id, assetDir }) => ({ id, assetDir })),
     corner: params.corner,
+    showStatus: params.showStatus ?? true,
     clickThrough: params.clickThrough ?? false,
   });
 }
 
-function offsetForSource(index: number, sizes: number[], corner: string): { x: number; y: number } {
+function offsetForSource(index: number, sizes: number[], corner: string, showStatus = true): { x: number; y: number } {
   if (index === 0) return { x: 0, y: 0 };
-  const step = sizes.slice(0, index).reduce((total, size) => total + calculateOverlayDimensions(size, 1).width + 24, 0);
+  const step = sizes.slice(0, index).reduce((total, size) => total + calculateOverlayDimensions(size, 1, showStatus).width + 24, 0);
   return {
     x: corner.endsWith("left") ? step : -step,
     y: 0,
@@ -668,14 +672,14 @@ export function createOverlayManager(createService: OverlayServiceFactory = crea
   const serviceParams = (params: StartOverlayParams, asset: DisplaySourceAsset, index: number, sizes: number[]): StartOverlayParams => {
     const size = sizes[index] ?? sourceSize(params, asset);
     const getSize = (sourceId?: string) => params.getSize?.(sourceId ?? asset.id) ?? asset.size ?? params.size;
-    const getWindowOffset = () => offsetForSource(index, sourceSizes(params), params.corner);
+    const getWindowOffset = () => offsetForSource(index, sourceSizes(params), params.corner, params.showStatus ?? true);
     return params.assets.length === 1
       ? { ...params, size, getSize, getWindowOffset: params.getWindowOffset ?? (() => params.windowOffset ?? { x: 0, y: 0 }) }
       : {
         ...params,
         assets: [asset],
         size,
-        windowOffset: offsetForSource(index, sizes, params.corner),
+        windowOffset: offsetForSource(index, sizes, params.corner, params.showStatus ?? true),
         getSnapshot: () => snapshotForSource(params, asset.id),
         getSize,
         getWindowOffset,

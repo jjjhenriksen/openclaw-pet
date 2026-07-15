@@ -63,6 +63,7 @@
           "enabled": { "type": "boolean", "default": true },
           "size": { "type": "integer", "minimum": 96, "maximum": 768, "default": 224 },
           "corner": { "type": "string", "enum": ["bottom-right", "bottom-left", "top-right", "top-left"], "default": "bottom-right" },
+          "showStatus": { "type": "boolean", "default": true, "description": "Show the status and activity panel beside each pet." },
           "clickThrough": { "type": "boolean", "default": false, "description": "Pass pointer input through the pet. Click-through pets cannot be dragged." }
         }
       }

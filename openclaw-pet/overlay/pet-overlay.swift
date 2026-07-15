@@ -52,11 +52,19 @@ let clickThrough = CommandLine.arguments.count >= 5 && CommandLine.arguments[4] 
 let sourceCount = CommandLine.arguments.count >= 6 ? max(1, min(16, Int(CommandLine.arguments[5]) ?? 1)) : 1
 let offsetX = CommandLine.arguments.count >= 7 ? Int(CommandLine.arguments[6]) ?? 0 : 0
 let offsetY = CommandLine.arguments.count >= 8 ? Int(CommandLine.arguments[7]) ?? 0 : 0
+let showStatus = CommandLine.arguments.count < 9 || CommandLine.arguments[8] != "false"
 let frame = NSScreen.main?.visibleFrame ?? .zero
 let edge: CGFloat = 20
 let activityWidth: CGFloat = 220
-let panelWidth = max(CGFloat(size * sourceCount) + activityWidth, 320)
-let panelHeight = max(CGFloat(size), 160)
+func overlayDimensions(size: Int, sourceCount: Int) -> (width: CGFloat, height: CGFloat) {
+  let petWidth = CGFloat(size * sourceCount)
+  return showStatus
+    ? (max(petWidth + activityWidth, 320), max(CGFloat(size), 160))
+    : (petWidth, CGFloat(size))
+}
+let initialDimensions = overlayDimensions(size: size, sourceCount: sourceCount)
+let panelWidth = initialDimensions.width
+let panelHeight = initialDimensions.height
 let panelX = (corner.contains("left") ? frame.minX + edge : frame.maxX - panelWidth - edge) + CGFloat(offsetX)
 let y = (corner.contains("top") ? frame.maxY - panelHeight - edge : frame.minY + edge) + CGFloat(offsetY)
 let panel = NSPanel(contentRect: NSRect(x: panelX, y: y, width: panelWidth, height: panelHeight), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -66,8 +74,9 @@ let web = WKWebView(frame: panel.contentView!.bounds); web.setValue(false, forKe
 web.autoresizingMask = [.width, .height]
 var dragSurface: DragSurface?
 let navigationDelegate = OverlayNavigationDelegate(port: port) { nextSize, nextCount, nextOffsetX, nextOffsetY in
-  let nextWidth = max(CGFloat(nextSize * nextCount) + activityWidth, 320)
-  let nextHeight = max(CGFloat(nextSize), 160)
+  let nextDimensions = overlayDimensions(size: nextSize, sourceCount: nextCount)
+  let nextWidth = nextDimensions.width
+  let nextHeight = nextDimensions.height
   let nextX = (corner.contains("left") ? frame.minX + edge : frame.maxX - nextWidth - edge) + CGFloat(nextOffsetX)
   let nextY = (corner.contains("top") ? frame.maxY - nextHeight - edge : frame.minY + edge) + CGFloat(nextOffsetY)
   panel.setFrame(NSRect(x: nextX, y: nextY, width: nextWidth, height: nextHeight), display: true)

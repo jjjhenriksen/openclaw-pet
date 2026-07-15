@@ -194,10 +194,12 @@ describe("overlay platform selection", () => {
 
   it("constructs the same helper arguments on both supported platforms", () => {
     const options = { port: 43123, size: 256, corner: "top-left", clickThrough: true, sourceCount: 3 };
-    expect(buildOverlayCommand("darwin", "/plugin/dist", options)?.args).toEqual(["43123", "256", "top-left", "true", "3", "0", "0"]);
-    expect(buildOverlayCommand("win32", "/plugin/dist", options)?.args).toEqual(["43123", "256", "top-left", "true", "3", "0", "0"]);
-    expect(buildOverlayCommand("win32", "/plugin/dist", { ...options, windowOffset: { x: 280, y: -20 } })?.args)
-      .toEqual(["43123", "256", "top-left", "true", "3", "280", "-20"]);
+    expect(buildOverlayCommand("darwin", "/plugin/dist", options)?.args).toEqual(["43123", "256", "top-left", "true", "3", "0", "0", "true"]);
+    expect(buildOverlayCommand("win32", "/plugin/dist", options)?.args).toEqual(["43123", "256", "top-left", "true", "3", "0", "0", "true"]);
+    expect(buildOverlayCommand("darwin", "/plugin/dist", { ...options, showStatus: false, windowOffset: { x: 280, y: -20 } })?.args)
+      .toEqual(["43123", "256", "top-left", "true", "3", "280", "-20", "false"]);
+    expect(buildOverlayCommand("win32", "/plugin/dist", { ...options, showStatus: false, windowOffset: { x: 280, y: -20 } })?.args)
+      .toEqual(["43123", "256", "top-left", "true", "3", "280", "-20", "false"]);
   });
 
   it("bounds runtime sizes and calculates helper frame dimensions", () => {
@@ -206,6 +208,8 @@ describe("overlay platform selection", () => {
     expect(normalizeOverlaySize(95)).toBeUndefined();
     expect(normalizeOverlaySize("224px")).toBeUndefined();
     expect(calculateOverlayDimensions(224, 3)).toEqual({ width: 892, height: 224 });
+    expect(calculateOverlayDimensions(96, 1, false)).toEqual({ width: 96, height: 96 });
+    expect(calculateOverlayDimensions(224, 3, false)).toEqual({ width: 672, height: 224 });
   });
 
   it("warns only once and starts nothing on unsupported platforms", async () => {
@@ -315,6 +319,23 @@ describe("overlay lifecycle", () => {
     await manager.stop();
   });
 
+  it("restarts helper windows when status panel visibility changes", async () => {
+    const start = vi.fn(async () => undefined);
+    const stop = vi.fn(async () => undefined);
+    const manager = createOverlayManager(() => ({
+      isActive: () => true,
+      start,
+      stop,
+    }));
+
+    await manager.start(params());
+    await manager.start({ ...params(), showStatus: false });
+
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(stop).toHaveBeenCalledTimes(1);
+    await manager.stop();
+  });
+
   it("updates live helper offsets when runtime sizes change", async () => {
     const started: StartOverlayParams[] = [];
     let stopCount = 0;
@@ -343,6 +364,28 @@ describe("overlay lifecycle", () => {
     expect(started).toHaveLength(2);
     expect(started[1]?.getWindowOffset?.()).toEqual({ x: -564, y: 0 });
     expect(stopCount).toBe(0);
+    await manager.stop();
+  });
+
+  it("packs pets without status-panel spacing when status is hidden", async () => {
+    const started: StartOverlayParams[] = [];
+    const manager = createOverlayManager(() => ({
+      isActive: () => true,
+      start: async (startParams) => { started.push(startParams); },
+      stop: async () => undefined,
+    }));
+    await manager.start({
+      ...params(),
+      assets: [
+        { id: "local", label: "Local", assetDir: "/assets/local" },
+        { id: "remote", label: "Remote", assetDir: "/assets/remote" },
+      ],
+      showStatus: false,
+      getSnapshot: () => remoteSnapshot,
+    });
+
+    expect(started[1]?.windowOffset).toEqual({ x: -248, y: 0 });
+    expect(started[1]?.getWindowOffset?.()).toEqual({ x: -248, y: 0 });
     await manager.stop();
   });
 
@@ -495,6 +538,24 @@ describe("overlay lifecycle", () => {
     expect(body).toContain("openclaw-pet://resize?size=");
     expect(body).toContain("&offsetX=");
     expect(body).toContain('sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp"');
+    await service.stop();
+  });
+
+  it("hides the status panel in the shared renderer", async () => {
+    const { service, listeners } = harness();
+    await service.start({ ...params(), showStatus: false });
+    let body = "";
+    const response = {
+      headersSent: false,
+      writeHead() { this.headersSent = true; return this; },
+      end(chunk?: string) { body = chunk ?? ""; return this; },
+    };
+    listeners[0]?.(
+      { url: "/" } as IncomingMessage,
+      response as unknown as ServerResponse,
+    );
+    expect(body).toContain("#activity{display:none;");
+    expect(body).toContain('<div id="pets"></div>');
     await service.stop();
   });
 });

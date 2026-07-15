@@ -36,6 +36,7 @@ export type PetConfig = {
     enabled?: boolean;
     size?: number;
     corner?: "bottom-right" | "bottom-left" | "top-right" | "top-left";
+    showStatus?: boolean;
     clickThrough?: boolean;
   };
 };

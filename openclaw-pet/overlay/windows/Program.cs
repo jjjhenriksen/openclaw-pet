@@ -18,7 +18,7 @@ internal static class Program
     {
         if (!OverlayArguments.TryParse(args, out var options))
         {
-            Console.Error.WriteLine("Usage: pet-overlay-win.exe <port> <size> <corner> [clickThrough] [sourceCount]");
+            Console.Error.WriteLine("Usage: pet-overlay-win.exe <port> <size> <corner> [clickThrough] [sourceCount] [offsetX] [offsetY] [showStatus]");
             return 2;
         }
 
@@ -44,7 +44,7 @@ internal static class Program
     }
 }
 
-internal sealed record OverlayArguments(int Port, int Size, string Corner, bool ClickThrough, int SourceCount, int OffsetX, int OffsetY)
+internal sealed record OverlayArguments(int Port, int Size, string Corner, bool ClickThrough, int SourceCount, int OffsetX, int OffsetY, bool ShowStatus)
 {
     private static readonly HashSet<string> Corners =
     [
@@ -70,7 +70,9 @@ internal sealed record OverlayArguments(int Port, int Size, string Corner, bool 
         if (sourceCount is < 1 or > 16) return false;
         var offsetX = args.Length >= 6 && int.TryParse(args[5], out var parsedOffsetX) ? parsedOffsetX : 0;
         var offsetY = args.Length >= 7 && int.TryParse(args[6], out var parsedOffsetY) ? parsedOffsetY : 0;
-        options = new OverlayArguments(port, size, args[2], clickThrough, sourceCount, offsetX, offsetY);
+        var showStatus = true;
+        if (args.Length >= 8 && !bool.TryParse(args[7], out showStatus)) return false;
+        options = new OverlayArguments(port, size, args[2], clickThrough, sourceCount, offsetX, offsetY, showStatus);
         return true;
     }
 }
@@ -100,8 +102,8 @@ internal sealed class OverlayWindow : Window
         origin = new Uri($"http://127.0.0.1:{options.Port}/");
 
         Title = "OpenClaw Pet";
-        Width = Math.Max(options.Size * options.SourceCount + 220, 320);
-        Height = Math.Max(options.Size, 160);
+        Width = LayoutWidth(options.Size, options.SourceCount);
+        Height = LayoutHeight(options.Size);
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         AllowsTransparency = true;
@@ -264,8 +266,8 @@ internal sealed class OverlayWindow : Window
 
     private void ApplyRuntimeLayout(int size, int sourceCount, int offsetX, int offsetY)
     {
-        Width = Math.Max(size * sourceCount + 220, 320);
-        Height = Math.Max(size, 160);
+        Width = LayoutWidth(size, sourceCount);
+        Height = LayoutHeight(size);
         PositionInCorner(offsetX, offsetY);
         if (dragSurface is not null)
         {
@@ -273,6 +275,14 @@ internal sealed class OverlayWindow : Window
             dragSurface.Height = size;
         }
     }
+
+    private double LayoutWidth(int size, int sourceCount)
+    {
+        var petWidth = size * sourceCount;
+        return options.ShowStatus ? Math.Max(petWidth + 220, 320) : petWidth;
+    }
+
+    private double LayoutHeight(int size) => options.ShowStatus ? Math.Max(size, 160) : size;
 
     private void PositionInCorner(int offsetX, int offsetY)
     {

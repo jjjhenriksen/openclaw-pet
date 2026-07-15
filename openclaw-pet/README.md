@@ -36,6 +36,7 @@ Example plugin config (use escaped backslashes in JSON on Windows):
     "enabled": true,
     "size": 224,
     "corner": "bottom-right",
+    "showStatus": false,
     "clickThrough": false
   }
 }
@@ -127,6 +128,8 @@ The equivalent chat commands are `/pet resize 288` and `/pet resize server 320`.
 
 `overlay.clickThrough` is optional and defaults to `false`, preserving draggable pet windows. Set it to `true` to pass pointer input to windows underneath the pets; click-through pets cannot be dragged, so change the corner in config and restart the Gateway to reposition them.
 
+`overlay.showStatus` is optional and defaults to `true`. Set it to `false` to hide the status and recent-activity panel while keeping the animated pet visible. Hidden status panels do not leave an invisible interactive area beside the pet.
+
 ## Build prerequisites
 
 All platforms require Node.js/npm and the normal OpenClaw development dependencies installed by `npm install`.
@@ -152,7 +155,7 @@ Run the two `openclaw` inspection commands after installing or linking the plugi
 The Windows helper uses a borderless WPF window, WebView2 composition rendering, the Win32 topmost/non-activating styles, and an optional transparent input style. It does not appear in the taskbar or intentionally take focus.
 
 - Corner placement currently uses the primary display’s work area.
-- With the default `clickThrough: false`, drag any pet to reposition that pet temporarily; its adjacent activity panel remains interactive.
+- With the default `clickThrough: false`, drag any pet to reposition that pet temporarily; its adjacent activity panel remains interactive when `showStatus` is enabled.
 - With `clickThrough: true`, clicks pass through where Windows permits, but dragging is unavailable.
 - The build emits one architecture-specific executable. Rebuild on x64, ARM64, or x86 when distributing to a different architecture.
 

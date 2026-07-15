@@ -46,6 +46,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
         assets,
         size: overlaySize,
         corner: config?.overlay?.corner ?? "bottom-right",
+        showStatus: config?.overlay?.showStatus ?? true,
         clickThrough: config?.overlay?.clickThrough ?? false,
         getSnapshot: () => sources.snapshot(),
         getSize: getSourceSize,
