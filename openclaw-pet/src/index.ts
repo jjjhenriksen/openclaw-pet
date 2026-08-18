@@ -133,29 +133,18 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
       respond(true, result);
     }, { scope: "operator.write" });
 
-    api.on("model_call_started", () => { void launchOverlay(process.env.TMPDIR ?? "/tmp"); pet.modelStarted(); });
-    api.on("before_tool_call", (event) => { void launchOverlay(process.env.TMPDIR ?? "/tmp"); pet.toolStarted(safeToolName({ toolName: event.toolName })); });
-    api.on("after_tool_call", (event) => pet.toolFinished(Boolean(event.error)));
-    api.on("agent_end", (event) => pet.agentEnded(event.success === false));
     api.on("gateway_start", async () => { await launchOverlay(process.env.TMPDIR ?? "/tmp"); });
     api.agent.events.registerAgentEventSubscription({
       id: "openclaw-pet-activity",
       description: "Drive the desktop pet from sanitized agent lifecycle and tool events.",
-      streams: ["lifecycle", "tool", "error", "acp", "item", "command_output", "patch"],
+      streams: ["lifecycle", "assistant", "tool", "acp", "item", "command_output", "patch"],
       handle: (event) => {
         const phase = String(event.data.phase ?? event.data.status ?? event.data.type ?? "").toLowerCase();
-        if (event.stream === "acp") {
-          const eventType = String(event.data.eventType ?? "").toLowerCase();
-          if (eventType === "tool_call") {
-            if (phase.includes("result") || phase.includes("complete")) pet.toolFinished(false);
-            else pet.toolStarted(safeToolName(event.data));
-            return;
-          }
-          if (eventType === "error") { pet.agentEnded(true); return; }
-          pet.progress("Working");
+        if (event.stream === "assistant") {
+          pet.progress("Agent is replying");
           return;
         }
-        if (event.stream === "item") {
+        if (event.stream === "acp" || event.stream === "item" || event.stream === "command_output" || event.stream === "patch") {
           pet.progress("Working");
           return;
         }
@@ -165,8 +154,8 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
           else pet.toolStarted(safeToolName(event.data));
           return;
         }
-        if (event.stream === "error") { pet.agentEnded(true); return; }
-        if (phase.includes("end") || phase.includes("complete") || phase.includes("finish")) pet.agentEnded(false);
+        if (phase.includes("error") || phase.includes("fail")) pet.agentEnded(true);
+        else if (phase.includes("end") || phase.includes("complete") || phase.includes("finish")) pet.agentEnded(false);
         else pet.modelStarted();
       },
     });
