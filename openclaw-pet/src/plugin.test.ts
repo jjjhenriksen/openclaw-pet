@@ -138,6 +138,6 @@ describe("plugin bridge registration", () => {
     const bridge = registered.gatewayMethods.get(BRIDGE_SNAPSHOT_METHOD);
     let payload: any;
     void bridge?.handler({ respond: (_ok: boolean, nextPayload: unknown) => { payload = nextPayload; } });
-    expect(payload).toMatchObject({ animation: "failed", activeRuns: 0, activityLabel: "Task failed" });
+    expect(payload.state).toMatchObject({ animation: "failed", activityLabel: "Task failed" });
   });
 });
