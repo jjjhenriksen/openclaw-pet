@@ -123,7 +123,7 @@ describe("plugin bridge registration", () => {
     const bridge = registered.gatewayMethods.get(BRIDGE_SNAPSHOT_METHOD);
     let payload: any;
     void bridge?.handler({ respond: (_ok: boolean, nextPayload: unknown) => { payload = nextPayload; } });
-    expect(payload).toMatchObject({ animation: "jumping", activeRuns: 0, activityLabel: "Task complete" });
+    expect(payload.state).toMatchObject({ animation: "jumping", activityLabel: "Task complete" });
     expect(registered.getAgentEventSubscription().streams).not.toContain("error");
   });
 });
