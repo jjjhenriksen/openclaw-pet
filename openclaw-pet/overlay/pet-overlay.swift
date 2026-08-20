@@ -56,10 +56,11 @@ let showStatus = CommandLine.arguments.count < 9 || CommandLine.arguments[8] != 
 let frame = NSScreen.main?.visibleFrame ?? .zero
 let edge: CGFloat = 20
 let activityWidth: CGFloat = 220
+let activityHeight: CGFloat = 128
 func overlayDimensions(size: Int, sourceCount: Int) -> (width: CGFloat, height: CGFloat) {
   let petWidth = CGFloat(size * sourceCount)
   return showStatus
-    ? (max(petWidth + activityWidth, 320), max(CGFloat(size), 160))
+    ? (max(petWidth, activityWidth), CGFloat(size) + activityHeight)
     : (petWidth, CGFloat(size))
 }
 let initialDimensions = overlayDimensions(size: size, sourceCount: sourceCount)

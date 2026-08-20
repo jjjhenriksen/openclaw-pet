@@ -10,6 +10,7 @@ import type { DisplaySnapshot, DisplaySourceAsset, DisplaySourceState } from "./
 export const MIN_OVERLAY_SIZE = 96;
 export const MAX_OVERLAY_SIZE = 768;
 export const OVERLAY_ACTIVITY_WIDTH = 220;
+export const OVERLAY_ACTIVITY_HEIGHT = 128;
 
 export type OverlayHelper = {
   executable: string;
@@ -156,8 +157,8 @@ export function normalizeOverlaySize(value: unknown): number | undefined {
 export function calculateOverlayDimensions(size: number, sourceCount: number, showStatus = true): { width: number; height: number } {
   const petWidth = size * Math.max(1, sourceCount);
   return {
-    width: showStatus ? Math.max(petWidth + OVERLAY_ACTIVITY_WIDTH, 320) : petWidth,
-    height: showStatus ? Math.max(size, 160) : size,
+    width: showStatus ? Math.max(petWidth, OVERLAY_ACTIVITY_WIDTH) : petWidth,
+    height: showStatus ? size + OVERLAY_ACTIVITY_HEIGHT : size,
   };
 }
 
@@ -198,7 +199,8 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
   <style>
     :root{--pet-size:${size}px}
     html,body{width:100%;height:100%;margin:0;background:transparent;overflow:hidden;user-select:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    #activity{display:${showStatus ? "block" : "none"};box-sizing:border-box;position:absolute;left:8px;bottom:8px;width:204px;max-height:calc(100% - 16px);overflow:hidden;padding:9px 10px;border-radius:11px;background:rgba(27,29,31,.94);color:#f5f5f5;box-shadow:0 2px 8px rgba(0,0,0,.26)}
+    #activity{display:${showStatus ? "block" : "none"};box-sizing:border-box;position:absolute;top:8px;left:50%;transform:translateX(-50%);width:204px;max-height:calc(100% - var(--pet-size) - 24px);overflow:hidden;padding:9px 10px;border-radius:11px;background:rgba(27,29,31,.94);color:#f5f5f5;box-shadow:0 2px 8px rgba(0,0,0,.26)}
+    #activity:after{content:"";position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);border:7px solid transparent;border-top-color:rgba(27,29,31,.94);border-bottom:0}
     #head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;letter-spacing:.01em}
     button{border:0;background:transparent;color:#b9c5ff;font:inherit;padding:0;cursor:pointer}
     ul{list-style:none;margin:7px 0 0;padding:0;display:grid;gap:5px}
@@ -208,7 +210,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
     .active .dot{background:#8ab4ff}.success .dot{background:#65d6a0}.error .dot{background:#f38b8b}
     .unavailable .dot{background:#9ca3af}.unavailable .status{color:#a8adb5}
     .collapsed li:nth-child(n+3){display:none}
-    #pets{position:absolute;right:0;bottom:0;display:flex;align-items:flex-end}
+    #pets{position:absolute;right:0;bottom:${showStatus ? 8 : 0}px;display:flex;align-items:flex-end}
     .pet{position:relative;width:var(--pet-size);height:var(--pet-size);flex:0 0 auto}.pet.unavailable{opacity:.46}
     canvas{width:100%;height:100%;display:block;image-rendering:pixelated;pointer-events:none}
   </style>

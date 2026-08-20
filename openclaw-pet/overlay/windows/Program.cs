@@ -279,10 +279,10 @@ internal sealed class OverlayWindow : Window
     private double LayoutWidth(int size, int sourceCount)
     {
         var petWidth = size * sourceCount;
-        return options.ShowStatus ? Math.Max(petWidth + 220, 320) : petWidth;
+        return options.ShowStatus ? Math.Max(petWidth, 220) : petWidth;
     }
 
-    private double LayoutHeight(int size) => options.ShowStatus ? Math.Max(size, 160) : size;
+    private double LayoutHeight(int size) => options.ShowStatus ? size + 128 : size;
 
     private void PositionInCorner(int offsetX, int offsetY)
     {
