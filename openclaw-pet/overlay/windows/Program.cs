@@ -91,10 +91,13 @@ internal sealed class OverlayWindow : Window
     private const uint NoZOrderPositionFlag = 0x0004;
     private const uint NoActivatePositionFlag = 0x0010;
     private const uint FrameChangedPositionFlag = 0x0020;
+    private const double DragButtonReserve = 80;
+    private const double ActivityHeight = 128;
     private readonly OverlayArguments options;
     private readonly WebView2CompositionControl webView;
     private readonly Uri origin;
     private readonly Border? dragSurface;
+    private bool petsHidden;
 
     internal OverlayWindow(OverlayArguments options)
     {
@@ -126,15 +129,8 @@ internal sealed class OverlayWindow : Window
         root.Children.Add(webView);
         if (!options.ClickThrough)
         {
-            dragSurface = new Border
-            {
-                Background = Brushes.Transparent,
-                Cursor = Cursors.SizeAll,
-                Width = options.Size * options.SourceCount,
-                Height = options.Size,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Bottom,
-            };
+            dragSurface = new Border { Background = Brushes.Transparent, Cursor = Cursors.SizeAll };
+            UpdateDragSurfaceLayout(options.Size, options.SourceCount);
             dragSurface.MouseLeftButtonDown += BeginWindowDrag;
             root.Children.Add(dragSurface);
         }
@@ -249,7 +245,8 @@ internal sealed class OverlayWindow : Window
                         .FirstOrDefault();
                     Dispatcher.BeginInvoke(() =>
                     {
-                        if (dragSurface is not null) dragSurface.Visibility = hidden ? Visibility.Hidden : Visibility.Visible;
+                        petsHidden = hidden;
+                        UpdateDragSurfaceLayout(options.Size, options.SourceCount);
                     });
                     return;
                 }
@@ -283,10 +280,26 @@ internal sealed class OverlayWindow : Window
         Width = LayoutWidth(size, sourceCount);
         Height = LayoutHeight(size);
         PositionInCorner(offsetX, offsetY);
-        if (dragSurface is not null)
+        UpdateDragSurfaceLayout(size, sourceCount);
+    }
+
+    private void UpdateDragSurfaceLayout(int size, int sourceCount)
+    {
+        if (dragSurface is null) return;
+        dragSurface.Visibility = Visibility.Visible;
+        if (petsHidden)
+        {
+            dragSurface.Width = Math.Max(1, LayoutWidth(size, sourceCount) - DragButtonReserve);
+            dragSurface.Height = ActivityHeight;
+            dragSurface.HorizontalAlignment = HorizontalAlignment.Left;
+            dragSurface.VerticalAlignment = VerticalAlignment.Top;
+        }
+        else
         {
             dragSurface.Width = size * sourceCount;
             dragSurface.Height = size;
+            dragSurface.HorizontalAlignment = HorizontalAlignment.Right;
+            dragSurface.VerticalAlignment = VerticalAlignment.Bottom;
         }
     }
 
