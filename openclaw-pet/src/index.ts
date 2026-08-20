@@ -18,7 +18,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
     const controllerAssetDir = config.assetDir ?? config.sources?.find((source) => !source.gateway)?.assetDir;
     const pet = createPetController({ ...config, assetDir: controllerAssetDir });
     const sources = new SourceCoordinator({ config, getLocalSnapshot: () => pet.snapshot(), logger: api.logger });
-    let overlaySize = normalizeOverlaySize(config?.overlay?.size) ?? 224;
+    let overlaySize = normalizeOverlaySize(config?.overlay?.size) ?? 160;
     const sourceSizes = new Map<string, number>();
     let overlayStateDir = process.env.TMPDIR ?? "/tmp";
     const getSourceSize = (sourceId?: string): number => {

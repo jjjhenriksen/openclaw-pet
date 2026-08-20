@@ -207,7 +207,8 @@ describe("overlay platform selection", () => {
     expect(normalizeOverlaySize(768)).toBe(768);
     expect(normalizeOverlaySize(95)).toBeUndefined();
     expect(normalizeOverlaySize("224px")).toBeUndefined();
-    expect(calculateOverlayDimensions(224, 3)).toEqual({ width: 892, height: 224 });
+    expect(calculateOverlayDimensions(224, 3)).toEqual({ width: 672, height: 352 });
+    expect(calculateOverlayDimensions(96, 1)).toEqual({ width: 220, height: 224 });
     expect(calculateOverlayDimensions(96, 1, false)).toEqual({ width: 96, height: 96 });
     expect(calculateOverlayDimensions(224, 3, false)).toEqual({ width: 672, height: 224 });
   });
@@ -254,8 +255,8 @@ describe("overlay lifecycle", () => {
     expect(started[1]?.assets).toEqual([{ id: "remote", label: "Remote", assetDir: "/assets/remote", size: 224 }]);
     expect(started[1]?.size).toBe(224);
     expect(started[1]?.getSize?.()).toBe(224);
-    expect(started[1]?.getWindowOffset?.()).toEqual({ x: -564, y: 0 });
-    expect(started[1]?.windowOffset).toEqual({ x: -564, y: 0 });
+    expect(started[1]?.getWindowOffset?.()).toEqual({ x: -344, y: 0 });
+    expect(started[1]?.windowOffset).toEqual({ x: -344, y: 0 });
     expect(started[1]?.getSnapshot().sources.map((source) => source.id)).toEqual(["remote"]);
 
     await manager.stop();
@@ -357,12 +358,12 @@ describe("overlay lifecycle", () => {
     };
 
     await manager.start(baseParams);
-    expect(started[1]?.getWindowOffset?.()).toEqual({ x: -468, y: 0 });
+    expect(started[1]?.getWindowOffset?.()).toEqual({ x: -248, y: 0 });
     runtimeSizes.set("local", 320);
     await manager.start(baseParams);
 
     expect(started).toHaveLength(2);
-    expect(started[1]?.getWindowOffset?.()).toEqual({ x: -564, y: 0 });
+    expect(started[1]?.getWindowOffset?.()).toEqual({ x: -344, y: 0 });
     expect(stopCount).toBe(0);
     await manager.stop();
   });
@@ -538,6 +539,10 @@ describe("overlay lifecycle", () => {
     expect(body).toContain("openclaw-pet://resize?size=");
     expect(body).toContain("&offsetX=");
     expect(body).toContain('sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp"');
+    expect(body).toContain(".pet-hidden #pets{display:none}");
+    expect(body).toContain('toggle.textContent=hidden?"Show":"Hide"');
+    expect(body).toContain("#activity:after");
+    expect(body).toContain("top:8px;left:50%;transform:translateX(-50%)");
     await service.stop();
   });
 
