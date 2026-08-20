@@ -209,7 +209,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
     .dot{width:6px;height:6px;border-radius:50%;background:#9ca3af;flex:0 0 auto}
     .active .dot{background:#8ab4ff}.success .dot{background:#65d6a0}.error .dot{background:#f38b8b}
     .unavailable .dot{background:#9ca3af}.unavailable .status{color:#a8adb5}
-    .collapsed li:nth-child(n+3){display:none}
+    .pet-hidden #pets{display:none}
     #pets{position:absolute;right:0;bottom:${showStatus ? 8 : 0}px;display:flex;align-items:flex-end}
     .pet{position:relative;width:var(--pet-size);height:var(--pet-size);flex:0 0 auto}.pet.unavailable{opacity:.46}
     canvas{width:100%;height:100%;display:block;image-rendering:pixelated;pointer-events:none}
@@ -225,19 +225,17 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
     const animations=${animations};
     const events=document.querySelector("#events");
     const pets=document.querySelector("#pets");
-    const activityPanel=document.querySelector("#activity");
     const toggle=document.querySelector("#toggle");
     const watchdogMs=10000;
     let state={layout:{petSize:${size},sourceCount:${Math.max(1, sourceCount)},windowOffset:{x:0,y:0}},sources:[]};
     let layoutKey="${size}:${Math.max(1, sourceCount)}:0:0";
     let lastStateAt=Date.now(),shutdownRequested=false;
-    let collapsed=false;
     const renderers=new Map();
     toggle.onclick=()=>{
-      collapsed=!collapsed;
-      activityPanel.classList.toggle("collapsed",collapsed);
-      toggle.textContent=collapsed?"Show":"Hide";
-      toggle.setAttribute("aria-expanded",String(!collapsed));
+      const hidden=document.body.classList.toggle("pet-hidden");
+      toggle.textContent=hidden?"Show":"Hide";
+      toggle.setAttribute("aria-expanded",String(!hidden));
+      toggle.setAttribute("aria-label",hidden?"Show pets":"Hide pets");
     };
     function toneFor(source){
       if(!source.available)return "unavailable";

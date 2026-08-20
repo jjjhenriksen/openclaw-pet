@@ -539,6 +539,8 @@ describe("overlay lifecycle", () => {
     expect(body).toContain("openclaw-pet://resize?size=");
     expect(body).toContain("&offsetX=");
     expect(body).toContain('sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp"');
+    expect(body).toContain(".pet-hidden #pets{display:none}");
+    expect(body).toContain('toggle.textContent=hidden?"Show":"Hide"');
     expect(body).toContain("#activity:after");
     expect(body).toContain("top:8px;left:50%;transform:translateX(-50%)");
     await service.stop();
