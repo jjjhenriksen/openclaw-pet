@@ -154,7 +154,11 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
           else pet.toolStarted(safeToolName(event.data));
           return;
         }
-        if (phase.includes("error") || phase.includes("fail")) pet.agentEnded(true);
+        if (phase === "finishing") {
+          pet.progress("Finishing up");
+        } else if (phase.includes("error") || phase.includes("fail") || event.data.aborted === true) {
+          pet.agentEnded(true);
+        }
         else if (phase.includes("end") || phase.includes("complete") || phase.includes("finish")) pet.agentEnded(false);
         else pet.modelStarted();
       },

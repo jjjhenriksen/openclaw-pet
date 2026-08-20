@@ -126,4 +126,18 @@ describe("plugin bridge registration", () => {
     expect(payload.state).toMatchObject({ animation: "jumping", activityLabel: "Task complete" });
     expect(registered.getAgentEventSubscription().streams).not.toContain("error");
   });
+
+  it("does not turn finishing or aborted lifecycle events into new work", () => {
+    const registered = registerPlugin();
+    const subscription = registered.getAgentEventSubscription();
+
+    subscription.handle({ stream: "lifecycle", data: { phase: "start" } });
+    subscription.handle({ stream: "lifecycle", data: { phase: "finishing" } });
+    subscription.handle({ stream: "lifecycle", data: { phase: "end", aborted: true } });
+
+    const bridge = registered.gatewayMethods.get(BRIDGE_SNAPSHOT_METHOD);
+    let payload: any;
+    void bridge?.handler({ respond: (_ok: boolean, nextPayload: unknown) => { payload = nextPayload; } });
+    expect(payload.state).toMatchObject({ animation: "failed", activityLabel: "Task failed" });
+  });
 });
