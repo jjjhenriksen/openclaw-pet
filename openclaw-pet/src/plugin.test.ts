@@ -75,8 +75,15 @@ describe("plugin bridge registration", () => {
   it("does not publish model text from progress events over the bridge", async () => {
     const registered = registerPlugin();
     const subscription = registered.getAgentEventSubscription();
+    expect(subscription.streams).toContain("assistant");
     expect(subscription.streams).not.toContain("thinking");
 
+    subscription.handle({
+      stream: "assistant",
+      data: {
+        delta: "raw model output should stay local",
+      },
+    });
     subscription.handle({
       stream: "item",
       data: {
@@ -98,9 +105,25 @@ describe("plugin bridge registration", () => {
     let payload: unknown;
     await bridge?.handler({ respond: (_ok: boolean, nextPayload: unknown) => { payload = nextPayload; } });
     const wire = JSON.stringify(payload);
+    expect(wire).not.toContain("raw model output");
     expect(wire).not.toContain("raw model reasoning");
     expect(wire).not.toContain("should stay local");
     expect(wire).not.toContain("secret item");
     expect(wire).not.toContain("secret acp");
+    expect(wire).toContain("Agent is replying");
+  });
+
+  it("uses the lifecycle stream as the sole run boundary", () => {
+    const registered = registerPlugin();
+    const subscription = registered.getAgentEventSubscription();
+
+    subscription.handle({ stream: "lifecycle", data: { phase: "start" } });
+    subscription.handle({ stream: "lifecycle", data: { phase: "end" } });
+
+    const bridge = registered.gatewayMethods.get(BRIDGE_SNAPSHOT_METHOD);
+    let payload: any;
+    void bridge?.handler({ respond: (_ok: boolean, nextPayload: unknown) => { payload = nextPayload; } });
+    expect(payload.state).toMatchObject({ animation: "jumping", activityLabel: "Task complete" });
+    expect(registered.getAgentEventSubscription().streams).not.toContain("error");
   });
 });
