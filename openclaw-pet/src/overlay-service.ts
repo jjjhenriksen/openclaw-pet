@@ -236,6 +236,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
       toggle.textContent=hidden?"Show":"Hide";
       toggle.setAttribute("aria-expanded",String(!hidden));
       toggle.setAttribute("aria-label",hidden?"Show pets":"Hide pets");
+      location.href="openclaw-pet://pets-hidden?hidden="+encodeURIComponent(String(hidden));
     };
     function toneFor(source){
       if(!source.available)return "unavailable";

@@ -10,10 +10,12 @@ final class DragSurface: NSView {
 final class OverlayNavigationDelegate: NSObject, WKNavigationDelegate {
   private let port: Int
   private let resize: (Int, Int, Int, Int) -> Void
+  private let setPetsHidden: (Bool) -> Void
 
-  init(port: Int, resize: @escaping (Int, Int, Int, Int) -> Void) {
+  init(port: Int, resize: @escaping (Int, Int, Int, Int) -> Void, setPetsHidden: @escaping (Bool) -> Void) {
     self.port = port
     self.resize = resize
+    self.setPetsHidden = setPetsHidden
   }
 
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -36,6 +38,12 @@ final class OverlayNavigationDelegate: NSObject, WKNavigationDelegate {
       if let size, let count, (96...768).contains(size), (1...16).contains(count) {
         resize(size, count, offsetX, offsetY)
       }
+      return
+    }
+    if url.scheme == "openclaw-pet" && url.host == "pets-hidden" {
+      decisionHandler(.cancel)
+      let hidden = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "hidden" }).flatMap { Bool($0.value ?? "") } ?? false
+      setPetsHidden(hidden)
       return
     }
     let isOverlayOrigin = url.scheme == "http" && url.host == "127.0.0.1" && url.port == port
@@ -74,6 +82,7 @@ panel.isOpaque = false; panel.backgroundColor = NSColor.clear; panel.hasShadow =
 let web = WKWebView(frame: panel.contentView!.bounds); web.setValue(false, forKey: "drawsBackground")
 web.autoresizingMask = [.width, .height]
 var dragSurface: DragSurface?
+var petsHidden = false
 let navigationDelegate = OverlayNavigationDelegate(port: port) { nextSize, nextCount, nextOffsetX, nextOffsetY in
   let nextDimensions = overlayDimensions(size: nextSize, sourceCount: nextCount)
   let nextWidth = nextDimensions.width
@@ -82,6 +91,9 @@ let navigationDelegate = OverlayNavigationDelegate(port: port) { nextSize, nextC
   let nextY = (corner.contains("top") ? frame.maxY - nextHeight - edge : frame.minY + edge) + CGFloat(nextOffsetY)
   panel.setFrame(NSRect(x: nextX, y: nextY, width: nextWidth, height: nextHeight), display: true)
   dragSurface?.frame = NSRect(x: nextWidth - CGFloat(nextSize * nextCount), y: 0, width: CGFloat(nextSize * nextCount), height: CGFloat(max(1, nextSize - 38)))
+} setPetsHidden: { hidden in
+  petsHidden = hidden
+  dragSurface?.isHidden = hidden
 }
 web.navigationDelegate = navigationDelegate
 web.load(URLRequest(url: URL(string: "http://127.0.0.1:\(port)/")!))
@@ -91,6 +103,7 @@ if !clickThrough {
   surface.autoresizingMask = []
   surface.wantsLayer = true
   surface.layer?.backgroundColor = NSColor.clear.cgColor
+  surface.isHidden = petsHidden
   panel.contentView?.addSubview(surface)
   dragSurface = surface
 }

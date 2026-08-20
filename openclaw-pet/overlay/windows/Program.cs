@@ -239,6 +239,20 @@ internal sealed class OverlayWindow : Window
                     }
                     return;
                 }
+                if (target.Scheme == "openclaw-pet" && target.Host == "pets-hidden")
+                {
+                    navigation.Cancel = true;
+                    var hidden = target.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(pair => pair.Split('=', 2))
+                        .Where(parts => parts.Length == 2 && Uri.UnescapeDataString(parts[0]) == "hidden")
+                        .Select(parts => bool.TryParse(Uri.UnescapeDataString(parts[1]), out var value) && value)
+                        .FirstOrDefault();
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        if (dragSurface is not null) dragSurface.Visibility = hidden ? Visibility.Hidden : Visibility.Visible;
+                    });
+                    return;
+                }
                 if (
                     target.Scheme != origin.Scheme ||
                     target.Host != origin.Host ||
