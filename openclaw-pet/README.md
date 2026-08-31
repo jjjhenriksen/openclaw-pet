@@ -4,7 +4,7 @@ A native OpenClaw plugin that turns user-supplied Codex-compatible pet atlases i
 
 ## Privacy
 
-The plugin reduces OpenClaw lifecycle events to display-only pet state in the platform-neutral controller. Its versioned Gateway bridge exposes only an allowlisted `{ animation, changedAt, activityLabel, activity }` snapshot. Activity labels are generated from fixed lifecycle phases and validated tool names; prompts, tool arguments, tool results, model output, arbitrary event titles/statuses, credentials, asset paths, and controller errors never enter a bridge snapshot.
+The plugin reduces OpenClaw lifecycle events to display-only pet state in the platform-neutral controller. Its versioned Gateway bridge exposes only an allowlisted `{ animation, changedAt, activityLabel, activity }` snapshot. Activity labels are generated from fixed lifecycle phases and validated tool names; prompts, tool arguments, tool results, model output, arbitrary event titles/statuses, credentials, asset paths, and controller errors never enter a bridge snapshot. Isolated cron runs additionally show deterministic opaque task, session, and run identifiers in the local status label and lifecycle log lines; raw session keys and job identifiers are never displayed.
 
 Remote sources are pull-only: the display host periodically fetches the remote plugin's gateway-authenticated `/api/openclaw-pet/v1/snapshot` bridge endpoint and validates the complete response against the strict bridge contract. A response containing unknown fields is rejected. Gateway credentials are resolved from the display host's environment and used only for Gateway authentication. Token-authenticated remote sources must use HTTPS; loopback HTTP is accepted only for local development and SSH tunnels.
 

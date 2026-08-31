@@ -1,13 +1,9 @@
 import { definePluginEntry, type OpenClawPluginDefinition } from "openclaw/plugin-sdk/plugin-entry";
 import { toBridgeSnapshot } from "./bridge.js";
+import { createPetEventHandler } from "./event-handler.js";
 import { createPetController, type PetConfig } from "./pet-controller.js";
 import { normalizeOverlaySize, startOverlay, stopOverlay } from "./overlay-service.js";
 import { BRIDGE_SNAPSHOT_METHOD, SourceCoordinator, type DisplaySourceAsset } from "./source-coordinator.js";
-
-function safeToolName(data: Record<string, unknown>): string | undefined {
-  const value = data.toolName ?? data.name;
-  return typeof value === "string" && /^[a-zA-Z0-9_:-]{1,48}$/.test(value) ? value : undefined;
-}
 
 const plugin: OpenClawPluginDefinition = definePluginEntry({
   id: "openclaw-pet",
@@ -138,30 +134,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
       id: "openclaw-pet-activity",
       description: "Drive the desktop pet from sanitized agent lifecycle and tool events.",
       streams: ["lifecycle", "assistant", "tool", "acp", "item", "command_output", "patch"],
-      handle: (event) => {
-        const phase = String(event.data.phase ?? event.data.status ?? event.data.type ?? "").toLowerCase();
-        if (event.stream === "assistant") {
-          pet.progress("Agent is replying");
-          return;
-        }
-        if (event.stream === "acp" || event.stream === "item" || event.stream === "command_output" || event.stream === "patch") {
-          pet.progress("Working");
-          return;
-        }
-        if (event.stream === "tool") {
-          if (phase.includes("fail") || phase.includes("error")) pet.toolFinished(true);
-          else if (phase.includes("end") || phase.includes("result") || phase.includes("complete")) pet.toolFinished(false);
-          else pet.toolStarted(safeToolName(event.data));
-          return;
-        }
-        if (phase === "finishing") {
-          pet.progress("Finishing up");
-        } else if (phase.includes("error") || phase.includes("fail") || event.data.aborted === true) {
-          pet.agentEnded(true);
-        }
-        else if (phase.includes("end") || phase.includes("complete") || phase.includes("finish")) pet.agentEnded(false);
-        else pet.modelStarted();
-      },
+      handle: createPetEventHandler({ pet, logger: api.logger }),
     });
 
     api.registerCommand({
