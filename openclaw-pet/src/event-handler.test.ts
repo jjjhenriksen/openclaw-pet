@@ -20,9 +20,9 @@ describe("pet agent event visibility", () => {
     await handle({ ...base, stream: "lifecycle", data: { phase: "end" } });
 
     expect(logger.info).toHaveBeenCalledTimes(2);
-    expect(logger.info.mock.calls.flat().join(" ")).toMatch(/Cron "Morning Research Brief" · task-[0-9a-f]{10} · agent main · session-[0-9a-f]{10} · run-[0-9a-f]{10}/);
+    expect(logger.info.mock.calls.flat().join(" ")).toMatch(/Cron "Morning Research Brief" · agent main/);
     expect(logger.info.mock.calls.flat().join(" ")).not.toContain("job-secret-789");
-    expect(pet.progress).toHaveBeenCalledWith(expect.stringMatching(/^Cron "Morning Research Brief" · task-[0-9a-f]{10} · agent main · session-[0-9a-f]{10} · run-[0-9a-f]{10} · Agent is replying$/));
+    expect(pet.progress).toHaveBeenCalledWith(expect.stringMatching(/^Cron "Morning Research Brief" · agent main · Agent is replying$/));
     expect(pet.agentEnded).toHaveBeenCalledWith(false, expect.stringMatching(/Task complete$/));
   });
 
@@ -33,7 +33,7 @@ describe("pet agent event visibility", () => {
     const logger = { info: vi.fn(), warn: vi.fn() };
     const handle = createPetEventHandler({ pet, logger });
     await handle({ runId: "interactive-run", sessionKey: "agent:main:discord:channel:private", stream: "lifecycle", data: { phase: "start" } });
-    expect(pet.modelStarted).toHaveBeenCalledWith("Thinking");
-    expect(logger.info).not.toHaveBeenCalled();
+    expect(pet.modelStarted).toHaveBeenCalledWith("Session · agent main · Thinking");
+    expect(logger.info).toHaveBeenCalledWith("OpenClaw Pet session started: Session · agent main");
   });
 });

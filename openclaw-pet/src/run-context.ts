@@ -1,49 +1,37 @@
-import { createHash } from "node:crypto";
+export type SessionContextKind = "cron" | "session";
 
-export type CronRunContext = {
-  kind: "cron";
-  taskId: string;
-  sessionId: string;
-  runId: string;
+export type SessionContext = {
+  kind: SessionContextKind;
+  /** User-facing label, sanitized before it reaches display/log output. */
+  label?: string;
   agentId?: string;
-  /** User-configured cron label, sanitized before it reaches display/log output. */
-  jobName?: string;
 };
 
 const CRON_RUN_SESSION_KEY = /^agent:([a-zA-Z0-9_-]{1,64}):cron:([^:]{1,128}):run:([^:]{1,128})(?::|$)/i;
+const AGENT_SESSION_KEY = /^agent:([a-zA-Z0-9_-]{1,64}):/i;
 const SAFE_AGENT_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 
-function opaqueId(value: string): string {
-  return createHash("sha256").update(value, "utf8").digest("hex").slice(0, 10);
+function safeAgentId(value: string | undefined): string | undefined {
+  const agentId = value?.trim();
+  return agentId && SAFE_AGENT_ID.test(agentId) ? agentId : undefined;
 }
 
 /**
- * Returns display-only identifiers for an isolated cron run.
- *
- * The raw session key is intentionally accepted only for the exact OpenClaw
- * cron-run shape. Job, session, and run values are hashed before they leave
- * this module; channel, recipient, prompt, and tool data are never included.
+ * Returns a display-only context for any agent session. Cron is the first
+ * specialized kind; other session kinds intentionally remain generic until a
+ * host-provided label can be added without exposing routing metadata.
  */
-export function getCronRunContext(event: {
-  runId?: string;
+export function getSessionContext(event: {
   sessionKey?: string;
-  sessionId?: string;
   agentId?: string;
-}): CronRunContext | undefined {
+}): SessionContext | undefined {
   const sessionKey = event.sessionKey?.trim();
-  const match = sessionKey ? CRON_RUN_SESSION_KEY.exec(sessionKey) : undefined;
-  const jobId = match?.[2];
-  const sourceSession = event.sessionId?.trim() || sessionKey;
-  if (!match || !jobId || !sourceSession || !event.runId?.trim()) return undefined;
-
-  const agentId = event.agentId?.trim();
-  return {
-    kind: "cron",
-    taskId: `task-${opaqueId(jobId)}`,
-    sessionId: `session-${opaqueId(sourceSession)}`,
-    runId: `run-${opaqueId(event.runId.trim())}`,
-    ...(agentId && SAFE_AGENT_ID.test(agentId) ? { agentId } : {}),
-  };
+  const cronMatch = sessionKey ? CRON_RUN_SESSION_KEY.exec(sessionKey) : undefined;
+  const keyAgentId = sessionKey ? AGENT_SESSION_KEY.exec(sessionKey)?.[1] : undefined;
+  const agentId = safeAgentId(event.agentId) ?? safeAgentId(keyAgentId);
+  if (cronMatch) return { kind: "cron", ...(agentId ? { agentId } : {}) };
+  if (agentId) return { kind: "session", agentId };
+  return undefined;
 }
 
 export function getCronRunJobId(sessionKey?: string): string | undefined {
@@ -51,16 +39,13 @@ export function getCronRunJobId(sessionKey?: string): string | undefined {
   return match?.[2];
 }
 
-export function formatCronRunContext(context: CronRunContext): string {
-  return [
-    context.jobName ? `Cron "${context.jobName}"` : `Cron ${context.taskId}`,
-    context.jobName ? context.taskId : undefined,
-    context.agentId ? `agent ${context.agentId}` : undefined,
-    context.sessionId,
-    context.runId,
-  ].filter(Boolean).join(" · ");
+export function formatSessionContext(context: SessionContext): string {
+  const label = context.kind === "cron"
+    ? context.label ? `Cron "${context.label}"` : "Cron"
+    : context.label ? `Session "${context.label}"` : "Session";
+  return [label, context.agentId ? `agent ${context.agentId}` : undefined].filter(Boolean).join(" · ");
 }
 
-export function formatCronRunLog(context: CronRunContext, status: "started" | "completed" | "failed"): string {
-  return `OpenClaw Pet cron ${status}: ${formatCronRunContext(context)}`;
+export function formatSessionLog(context: SessionContext, status: "started" | "completed" | "failed"): string {
+  return `OpenClaw Pet ${context.kind} ${status}: ${formatSessionContext(context)}`;
 }

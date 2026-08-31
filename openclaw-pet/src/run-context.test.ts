@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCronRunContext, formatCronRunLog, getCronRunContext, getCronRunJobId } from "./run-context.js";
+import { formatSessionContext, formatSessionLog, getCronRunJobId, getSessionContext } from "./run-context.js";
 
 describe("pet cron run context", () => {
   const event = {
@@ -9,26 +9,28 @@ describe("pet cron run context", () => {
     sessionKey: "agent:main:cron:job-secret-789:run:run-secret-123",
   };
 
-  it("turns an isolated cron session into bounded opaque identifiers", () => {
-    const context = getCronRunContext(event);
-    expect(context).toMatchObject({ kind: "cron", agentId: "main" });
-    expect(context?.taskId).toMatch(/^task-[0-9a-f]{10}$/);
-    expect(context?.sessionId).toMatch(/^session-[0-9a-f]{10}$/);
-    expect(context?.runId).toMatch(/^run-[0-9a-f]{10}$/);
-    const output = `${formatCronRunContext(context!)} ${formatCronRunLog(context!, "started")}`;
-    expect(output).not.toContain("job-secret-789");
-    expect(output).not.toContain("run-secret-123");
-    expect(output).not.toContain("session-secret-456");
+  it("reduces an isolated cron session to its name and agent", () => {
+    const context = { ...getSessionContext(event)!, label: "Morning Research Brief" };
+    expect(context).toEqual({ kind: "cron", agentId: "main", label: "Morning Research Brief" });
+    expect(formatSessionContext(context)).toBe("Cron \"Morning Research Brief\" · agent main");
+    expect(formatSessionLog(context, "started")).toBe("OpenClaw Pet cron started: Cron \"Morning Research Brief\" · agent main");
+    expect(formatSessionContext(context)).not.toContain("job-secret-789");
+    expect(formatSessionContext(context)).not.toContain("run-secret-123");
+    expect(formatSessionContext(context)).not.toContain("session-secret-456");
   });
 
   it("fails closed for non-cron and malformed session keys", () => {
-    expect(getCronRunContext({ ...event, sessionKey: "agent:main:discord:channel:private" })).toBeUndefined();
-    expect(getCronRunContext({ ...event, sessionKey: "agent:main:cron:job:run" })).toBeUndefined();
-    expect(getCronRunContext({ ...event, runId: "" })).toBeUndefined();
+    expect(getSessionContext({ ...event, sessionKey: "agent:main:discord:channel:private" })).toEqual({ kind: "session", agentId: "main" });
+    expect(getSessionContext({ ...event, sessionKey: "agent:main:cron:job:run" })).toEqual({ kind: "session", agentId: "main" });
+    expect(getSessionContext({ sessionKey: "discord:channel:private" })).toBeUndefined();
   });
 
   it("extracts the job id only for the isolated cron-run shape", () => {
     expect(getCronRunJobId(event.sessionKey)).toBe("job-secret-789");
     expect(getCronRunJobId("agent:main:discord:channel:private")).toBeUndefined();
+  });
+
+  it("keeps future session kinds on the same display contract", () => {
+    expect(formatSessionContext({ kind: "session", agentId: "main" })).toBe("Session · agent main");
   });
 });
