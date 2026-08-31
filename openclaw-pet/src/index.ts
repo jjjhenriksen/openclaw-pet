@@ -1,6 +1,7 @@
 import { definePluginEntry, type OpenClawPluginDefinition } from "openclaw/plugin-sdk/plugin-entry";
 import { toBridgeSnapshot } from "./bridge.js";
 import { createPetEventHandler } from "./event-handler.js";
+import { createCronJobNameResolver } from "./cron-job-name.js";
 import { createPetController, type PetConfig } from "./pet-controller.js";
 import { normalizeOverlaySize, startOverlay, stopOverlay } from "./overlay-service.js";
 import { BRIDGE_SNAPSHOT_METHOD, SourceCoordinator, type DisplaySourceAsset } from "./source-coordinator.js";
@@ -134,7 +135,12 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
       id: "openclaw-pet-activity",
       description: "Drive the desktop pet from sanitized agent lifecycle and tool events.",
       streams: ["lifecycle", "assistant", "tool", "acp", "item", "command_output", "patch"],
-      handle: createPetEventHandler({ pet, logger: api.logger }),
+      handle: createPetEventHandler({
+        pet,
+        logger: api.logger,
+        resolveCronJobName: createCronJobNameResolver(async (jobId) =>
+          api.runtime.gateway.request("cron.get", { id: jobId }, { timeoutMs: 1000 })),
+      }),
     });
 
     api.registerCommand({

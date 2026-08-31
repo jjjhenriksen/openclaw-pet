@@ -6,6 +6,8 @@ export type CronRunContext = {
   sessionId: string;
   runId: string;
   agentId?: string;
+  /** User-configured cron label, sanitized before it reaches display/log output. */
+  jobName?: string;
 };
 
 const CRON_RUN_SESSION_KEY = /^agent:([a-zA-Z0-9_-]{1,64}):cron:([^:]{1,128}):run:([^:]{1,128})(?::|$)/i;
@@ -44,9 +46,15 @@ export function getCronRunContext(event: {
   };
 }
 
+export function getCronRunJobId(sessionKey?: string): string | undefined {
+  const match = sessionKey?.trim() ? CRON_RUN_SESSION_KEY.exec(sessionKey.trim()) : undefined;
+  return match?.[2];
+}
+
 export function formatCronRunContext(context: CronRunContext): string {
   return [
-    `Cron ${context.taskId}`,
+    context.jobName ? `Cron "${context.jobName}"` : `Cron ${context.taskId}`,
+    context.jobName ? context.taskId : undefined,
     context.agentId ? `agent ${context.agentId}` : undefined,
     context.sessionId,
     context.runId,

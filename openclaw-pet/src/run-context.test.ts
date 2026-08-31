@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCronRunContext, formatCronRunLog, getCronRunContext } from "./run-context.js";
+import { formatCronRunContext, formatCronRunLog, getCronRunContext, getCronRunJobId } from "./run-context.js";
 
 describe("pet cron run context", () => {
   const event = {
@@ -25,5 +25,10 @@ describe("pet cron run context", () => {
     expect(getCronRunContext({ ...event, sessionKey: "agent:main:discord:channel:private" })).toBeUndefined();
     expect(getCronRunContext({ ...event, sessionKey: "agent:main:cron:job:run" })).toBeUndefined();
     expect(getCronRunContext({ ...event, runId: "" })).toBeUndefined();
+  });
+
+  it("extracts the job id only for the isolated cron-run shape", () => {
+    expect(getCronRunJobId(event.sessionKey)).toBe("job-secret-789");
+    expect(getCronRunJobId("agent:main:discord:channel:private")).toBeUndefined();
   });
 });
