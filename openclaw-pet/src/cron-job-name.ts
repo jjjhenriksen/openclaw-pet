@@ -1,18 +1,12 @@
-const MAX_CRON_JOB_NAME_LENGTH = 80;
+import { sanitizeSessionLabel } from "./session-label.js";
 
 export type CronJobLookup = (jobId: string) => Promise<unknown>;
-
-function sanitizeCronJobName(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const normalized = value.replace(/\s+/g, " ").replace(/[\u0000-\u001f\u007f]/g, "").trim();
-  return normalized ? normalized.slice(0, MAX_CRON_JOB_NAME_LENGTH) : undefined;
-}
 
 /** Extracts only the user-facing cron label from a public cron.get response. */
 export function getCronJobName(response: unknown): string | undefined {
   if (!response || typeof response !== "object") return undefined;
   const job = response as { displayName?: unknown; name?: unknown };
-  return sanitizeCronJobName(job.displayName) ?? sanitizeCronJobName(job.name);
+  return sanitizeSessionLabel(job.displayName) ?? sanitizeSessionLabel(job.name);
 }
 
 /**
