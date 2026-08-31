@@ -2,6 +2,7 @@ import { definePluginEntry, type OpenClawPluginDefinition } from "openclaw/plugi
 import { toBridgeSnapshot } from "./bridge.js";
 import { createPetEventHandler } from "./event-handler.js";
 import { createCronJobNameResolver } from "./cron-job-name.js";
+import { createSessionDisplayNameResolver } from "./session-label.js";
 import { createPetController, type PetConfig } from "./pet-controller.js";
 import { normalizeOverlaySize, startOverlay, stopOverlay } from "./overlay-service.js";
 import { BRIDGE_SNAPSHOT_METHOD, SourceCoordinator, type DisplaySourceAsset } from "./source-coordinator.js";
@@ -138,6 +139,12 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
       handle: createPetEventHandler({
         pet,
         logger: api.logger,
+        resolveSessionDisplayName: createSessionDisplayNameResolver((sessionKey) =>
+          api.runtime.gateway.request("sessions.describe", {
+            key: sessionKey,
+            includeDerivedTitles: false,
+            includeLastMessage: false,
+          }, { timeoutMs: 1000 })),
         resolveCronJobName: createCronJobNameResolver(async (jobId) =>
           api.runtime.gateway.request("cron.get", { id: jobId }, { timeoutMs: 1000 })),
       }),

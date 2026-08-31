@@ -36,4 +36,19 @@ describe("pet agent event visibility", () => {
     expect(pet.modelStarted).toHaveBeenCalledWith("Session · agent main · Thinking");
     expect(logger.info).toHaveBeenCalledWith("OpenClaw Pet session started: Session · agent main");
   });
+
+  it("uses a persisted display name for any session without reading its transcript", async () => {
+    const pet = {
+      modelStarted: vi.fn(), progress: vi.fn(), toolStarted: vi.fn(), toolFinished: vi.fn(), agentEnded: vi.fn(),
+    };
+    const logger = { info: vi.fn(), warn: vi.fn() };
+    const handle = createPetEventHandler({
+      pet,
+      logger,
+      resolveSessionDisplayName: vi.fn().mockResolvedValue("Release Planning"),
+    });
+
+    await handle({ runId: "interactive-run", sessionKey: "agent:main:discord:channel:private", stream: "assistant", data: { delta: "secret" } });
+    expect(pet.progress).toHaveBeenCalledWith("Session \"Release Planning\" · agent main · Agent is replying");
+  });
 });

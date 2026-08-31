@@ -7,6 +7,7 @@ function registerPlugin(pluginConfig: unknown = { overlay: { enabled: false } })
   let httpRoute: any;
   let command: any;
   let agentEventSubscription: any;
+  const gatewayRequest = vi.fn().mockResolvedValue({ session: { displayName: "Release Planning" } });
   const api = {
     pluginConfig,
     registrationMode: "discovery",
@@ -18,6 +19,7 @@ function registerPlugin(pluginConfig: unknown = { overlay: { enabled: false } })
     registerCommand(value: any) { command = value; },
     registerService: vi.fn(),
     on: vi.fn(),
+    runtime: { gateway: { request: gatewayRequest } },
     agent: { events: { registerAgentEventSubscription: vi.fn((subscription: any) => { agentEventSubscription = subscription; }) } },
   };
   plugin.register?.(api as never);
@@ -26,6 +28,7 @@ function registerPlugin(pluginConfig: unknown = { overlay: { enabled: false } })
     getHttpRoute: () => httpRoute,
     getCommand: () => command,
     getAgentEventSubscription: () => agentEventSubscription,
+    getGatewayRequest: () => gatewayRequest,
   };
 }
 
@@ -111,6 +114,21 @@ describe("plugin bridge registration", () => {
     expect(wire).not.toContain("secret item");
     expect(wire).not.toContain("secret acp");
     expect(wire).toContain("Agent is replying");
+  });
+
+  it("looks up a session display name without requesting transcript content", async () => {
+    const registered = registerPlugin();
+    await registered.getAgentEventSubscription().handle({
+      runId: "session-run",
+      sessionKey: "agent:main:discord:channel:private",
+      stream: "assistant",
+      data: { delta: "secret" },
+    });
+    expect(registered.getGatewayRequest()).toHaveBeenCalledWith("sessions.describe", {
+      key: "agent:main:discord:channel:private",
+      includeDerivedTitles: false,
+      includeLastMessage: false,
+    }, { timeoutMs: 1000 });
   });
 
   it("uses the lifecycle stream as the sole run boundary", () => {

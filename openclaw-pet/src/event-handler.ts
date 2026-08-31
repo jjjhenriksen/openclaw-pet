@@ -37,6 +37,7 @@ function contextLabel(context: SessionContext | undefined, label: string): strin
 export function createPetEventHandler(params: {
   pet: PetEventSink;
   logger: PetEventLogger;
+  resolveSessionDisplayName?: (sessionKey: string) => Promise<string | undefined>;
   resolveCronJobName?: CronJobNameResolver;
 }): (event: PetAgentEvent) => Promise<void> {
   const contexts = new Map<string, SessionContext>();
@@ -79,10 +80,10 @@ export function createPetEventHandler(params: {
     }
   };
 
-  const processEvent = (event: PetAgentEvent): void | Promise<void> => {
-    let discovered = getSessionContext(event);
+  const processResolvedEvent = (event: PetAgentEvent, discovered: SessionContext | undefined, sessionLabel?: string): void | Promise<void> => {
+    if (sessionLabel) discovered = { ...(discovered ?? { kind: "session" }), label: sessionLabel };
     const jobId = getCronRunJobId(event.sessionKey);
-    if (discovered && jobId && params.resolveCronJobName) {
+    if (discovered?.kind === "cron" && !sessionLabel && jobId && params.resolveCronJobName) {
       return params.resolveCronJobName(jobId).then((jobName) => {
         if (jobName) discovered = { ...discovered!, label: jobName };
         if (discovered) {
@@ -99,6 +100,16 @@ export function createPetEventHandler(params: {
       while (contexts.size > 256) contexts.delete(contexts.keys().next().value!);
     }
     applyEvent(event, discovered);
+  };
+
+  const processEvent = (event: PetAgentEvent): void | Promise<void> => {
+    let discovered = getSessionContext(event);
+    const sessionKey = event.sessionKey?.trim();
+    if (sessionKey && params.resolveSessionDisplayName) {
+      return params.resolveSessionDisplayName(sessionKey).then((sessionLabel) =>
+        processResolvedEvent(event, discovered, sessionLabel));
+    }
+    return processResolvedEvent(event, discovered);
   };
 
   return (event) => {
