@@ -1,4 +1,4 @@
-import { formatCronRunContext, formatCronRunLog, getCronRunContext, getCronRunJobId, type CronRunContext } from "./run-context.js";
+import { formatSessionContext, formatSessionLog, getCronRunJobId, getSessionContext, type SessionContext } from "./run-context.js";
 
 export type PetAgentEvent = {
   runId: string;
@@ -29,8 +29,8 @@ function safeToolName(data: Record<string, unknown>): string | undefined {
   return typeof value === "string" && /^[a-zA-Z0-9_:-]{1,48}$/.test(value) ? value : undefined;
 }
 
-function contextLabel(context: CronRunContext | undefined, label: string): string {
-  return context ? `${formatCronRunContext(context)} · ${label}` : label;
+function contextLabel(context: SessionContext | undefined, label: string): string {
+  return context ? `${formatSessionContext(context)} · ${label}` : label;
 }
 
 /** Creates the privacy-preserving event reducer used by the plugin entrypoint. */
@@ -39,15 +39,15 @@ export function createPetEventHandler(params: {
   logger: PetEventLogger;
   resolveCronJobName?: CronJobNameResolver;
 }): (event: PetAgentEvent) => Promise<void> {
-  const contexts = new Map<string, CronRunContext>();
+  const contexts = new Map<string, SessionContext>();
   const eventQueues = new Map<string, Promise<void>>();
 
-  const applyEvent = (event: PetAgentEvent, discovered: CronRunContext | undefined): void => {
+  const applyEvent = (event: PetAgentEvent, discovered: SessionContext | undefined): void => {
     const context = discovered ?? contexts.get(event.runId);
     const phase = String(event.data.phase ?? event.data.status ?? event.data.type ?? "").toLowerCase();
 
     if (event.stream === "lifecycle" && phase === "start" && context) {
-      params.logger.info?.(formatCronRunLog(context, "started"));
+      params.logger.info?.(formatSessionLog(context, "started"));
     }
     if (event.stream === "assistant") {
       params.pet.progress(contextLabel(context, "Agent is replying"));
@@ -66,10 +66,10 @@ export function createPetEventHandler(params: {
       params.pet.progress(contextLabel(context, "Finishing up"));
     } else if (phase.includes("error") || phase.includes("fail") || event.data.aborted === true) {
       params.pet.agentEnded(true, contextLabel(context, "Task failed"));
-      if (context) params.logger.warn(formatCronRunLog(context, "failed"));
+      if (context) params.logger.warn(formatSessionLog(context, "failed"));
     } else if (phase.includes("end") || phase.includes("complete") || phase.includes("finish")) {
       params.pet.agentEnded(false, contextLabel(context, "Task complete"));
-      if (context) params.logger.info?.(formatCronRunLog(context, "completed"));
+      if (context) params.logger.info?.(formatSessionLog(context, "completed"));
     } else {
       params.pet.modelStarted(contextLabel(context, "Thinking"));
     }
@@ -80,11 +80,11 @@ export function createPetEventHandler(params: {
   };
 
   const processEvent = (event: PetAgentEvent): void | Promise<void> => {
-    let discovered = getCronRunContext(event);
+    let discovered = getSessionContext(event);
     const jobId = getCronRunJobId(event.sessionKey);
     if (discovered && jobId && params.resolveCronJobName) {
       return params.resolveCronJobName(jobId).then((jobName) => {
-        if (jobName) discovered = { ...discovered!, jobName };
+        if (jobName) discovered = { ...discovered!, label: jobName };
         if (discovered) {
           contexts.delete(event.runId);
           contexts.set(event.runId, discovered);
@@ -105,7 +105,7 @@ export function createPetEventHandler(params: {
     // Gateway dispatch does not await non-terminal subscriptions, so serialize
     // each run to keep an async name lookup from reordering lifecycle phases.
     const previous = eventQueues.get(event.runId);
-    if (!previous && !getCronRunContext(event)) {
+    if (!previous && !getSessionContext(event)) {
       processEvent(event);
       return Promise.resolve();
     }
