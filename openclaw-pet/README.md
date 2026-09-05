@@ -20,7 +20,7 @@ Both native helpers load the same renderer from the loopback server. If that ren
 2. Build on the OS where the plugin will run:
 
    ```bash
-   npm install
+   npm ci --ignore-scripts
    npm run build
    ```
 
@@ -132,21 +132,21 @@ The equivalent chat commands are `/pet resize 288` and `/pet resize server 320`.
 
 ## Build prerequisites
 
-All platforms require Node.js/npm and the normal OpenClaw development dependencies installed by `npm install`.
+Use Node.js 24.15.0 and npm 11.12.1 for the verified development toolchain. `npm ci --ignore-scripts` restores the committed dependency graph without running dependency lifecycle scripts; the explicit build command compiles the helper. The development and peer SDK are pinned to OpenClaw **2026.9.1**. Other SDK versions are unverified; widening the peer range requires compatibility checks. This pin records compile/import/registration-test compatibility, not a full live Gateway acceptance result.
 
 - macOS: Xcode Command Line Tools with `swiftc`. `npm run build:overlay` compiles `overlay/pet-overlay.swift` to `dist/pet-overlay-macos`.
-- Windows 11: the .NET 10 LTS SDK. `npm run build:overlay` publishes a self-contained WPF helper for the current Node architecture to `dist/pet-overlay-win.exe`; Swift is not required. The Evergreen WebView2 Runtime is part of Windows 11, but stripped-down or managed installations may need Microsoft’s runtime installed separately.
-- Other platforms: TypeScript still builds, while the native-overlay step prints a clear no-op message.
+- Windows 11: the .NET SDK version in `global.json` (10.0.400). `npm run build:overlay` publishes a self-contained WPF helper for the current Node architecture to `dist/pet-overlay-win.exe`; Swift is not required. The Evergreen WebView2 Runtime is part of Windows 11, but stripped-down or managed installations may need Microsoft’s runtime installed separately.
+- Other platforms: TypeScript can build, while the native-overlay step prints a no-op message. `pack:check` deliberately fails because it cannot validate a supported desktop archive.
 
 Run the full validation commands with:
 
 ```bash
-npm run build
-npm test
-npm pack --dry-run
+npm run validate
 openclaw plugins inspect openclaw-pet --runtime --json
 openclaw plugins doctor
 ```
+
+`validate` builds the native helper, runs the full test suite, creates a real `.tgz`, checks required compiled files and the platform executable, rejects a stale opposite-platform helper, and imports the compiled SDK entry. CI uses locked npm and NuGet restores and saves architecture-labelled archives. The host OS/compiler and Evergreen WebView2 runtime remain external inputs; this is dependency reproducibility, not a bit-for-bit binary guarantee. See [verification and acceptance](VERIFICATION.md) for test boundaries and desktop checks.
 
 Run the two `openclaw` inspection commands after installing or linking the plugin. `openclaw plugins build` and `openclaw plugins validate` intentionally validate generated `defineToolPlugin` metadata and do not apply to this `definePluginEntry` service plugin. General static validation for `definePluginEntry` would be an upstream enhancement, not a blocker for this package.
 
@@ -157,9 +157,12 @@ The Windows helper uses a borderless WPF window, WebView2 composition rendering,
 - Corner placement currently uses the primary display’s work area.
 - With the default `clickThrough: false`, drag any pet to reposition that pet temporarily; its adjacent activity panel remains interactive when `showStatus` is enabled.
 - With `clickThrough: true`, clicks pass through where Windows permits, but dragging is unavailable.
-- The build emits one architecture-specific executable. Rebuild on x64, ARM64, or x86 when distributing to a different architecture.
+- The build emits one architecture-specific executable. CI validates x64 on Windows Server 2025; Windows 11 desktop behavior still needs manual acceptance. ARM64 and x86 build paths exist but are not CI-verified.
 
 Before release, manually smoke-test on Windows 11:
+
+- Hide the pets, drag the remaining status bubble, and confirm the separate `Show pets` control works.
+- Disconnect a remote source and confirm its last state remains visible with an unavailable indication.
 
 - Launching the overlay does not move focus away from the foreground application.
 - Dragging the default overlay does not activate it or switch the foreground application.
@@ -167,6 +170,10 @@ Before release, manually smoke-test on Windows 11:
 - Stop the Gateway and confirm the helper disappears; force-terminate the Gateway and confirm the watchdog closes the helper within about 10 seconds.
 
 Before release, manually smoke-test on macOS:
+
+- Launch and drag the overlay without changing the foreground application.
+- Hide the pets, drag the remaining status bubble, and confirm the separate `Show pets` control works.
+- Disconnect a remote source and confirm its last state remains visible with an unavailable indication.
 
 - Each loopback renderer is transparent, animates, and remains draggable by default.
 - `clickThrough: true` passes input through and disables dragging.
