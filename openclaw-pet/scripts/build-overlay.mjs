@@ -39,12 +39,13 @@ if (process.platform === "darwin") {
       runtime,
       "--self-contained",
       "true",
+      "-p:RestoreLockedMode=true",
       "-p:PublishSingleFile=true",
       "-p:IncludeNativeLibrariesForSelfExtract=true",
       "-p:PublishTrimmed=false",
       "--output",
       publishDir,
-    ], { maxBuffer: 10 * 1024 * 1024 });
+    ], { cwd: packageRoot, maxBuffer: 10 * 1024 * 1024 });
     await copyFile(join(publishDir, "pet-overlay-win.exe"), target);
   } finally {
     await Promise.all([
