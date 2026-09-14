@@ -219,6 +219,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
     #pets{position:absolute;right:0;bottom:${showStatus ? 8 : 0}px;display:flex;align-items:flex-end}
     .pet{position:relative;width:var(--pet-size);height:var(--pet-size);flex:0 0 auto}.pet.unavailable{opacity:.46}
     canvas{width:100%;height:100%;display:block;image-rendering:pixelated;pointer-events:none}
+    svg.creature-svg{width:100%;height:100%;margin:0;display:block;overflow:visible;pointer-events:none;shape-rendering:geometricPrecision}
   </style>
 </head>
 <body>
@@ -272,15 +273,29 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
       const root=document.createElement("div");
       root.className="pet";
       root.dataset.sourceId=source.id;
-      const canvas=document.createElement("canvas");
-      root.append(canvas);
       pets.append(root);
       const sheet=new Image();
       const creature=source.creature;
-      if(creature) sheet.src="/creatures/"+encodeURIComponent(creature)+".svg";
-      else sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp";
-      const renderer={root,canvas,context:canvas.getContext("2d"),sheet,source,animation:"idle",frame:0,nextFrameAt:0,width:0,height:0,creature};
+      // Built-in creatures are fetched as SVG text and attached directly to
+      // the DOM. This keeps the geometry vector-rendered through WebKit.
+      const canvas=creature?null:document.createElement("canvas");
+      if(canvas)root.append(canvas);
+      if(!creature)sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp";
+      // The native WebView can retain image responses across plugin reloads;
+      // version creature assets so a renderer refresh cannot show an older
+      // silhouette after the Lobsterdex geometry changes.
+      const renderer={root,canvas,context:canvas?canvas.getContext("2d"):null,sheet,source,animation:"idle",frame:0,nextFrameAt:0,width:0,height:0,creature};
       renderers.set(source.id,renderer);
+      if(creature){
+        fetch("/creatures/"+encodeURIComponent(creature)+".svg?v=lobsterdex-20260913",{cache:"no-store"})
+          .then(response=>response.ok?response.text():Promise.reject(new Error("creature unavailable")))
+          .then(markup=>{
+            if(renderers.get(source.id)!==renderer)return;
+            root.innerHTML=markup;
+            const svg=root.firstElementChild;
+            if(svg)svg.classList.add("creature-svg");
+          }).catch(()=>{});
+      }
       return renderer;
     }
     function syncSources(sources){
@@ -333,16 +348,17 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
         const next=animations[animationName]||animations.idle;
         if(renderer.animation!==animationName){renderer.animation=animationName;renderer.frame=0;renderer.nextFrameAt=time;}
         if(time>=renderer.nextFrameAt){renderer.frame=(renderer.frame+1)%next.frames;renderer.nextFrameAt=time+next.durations[renderer.frame];}
-        if(renderer.creature){
-          renderer.root.dataset.animation=animationName;
-          renderer.root.style.transform=animationName.includes("running")?"translateX("+(Math.sin(time/180)*3)+"px)":animationName==="jumping"?"translateY("+(Math.sin(time/160)*6)+"px)":"";
-        } else if(renderer.sheet.complete&&renderer.sheet.naturalWidth){
+        if(!renderer.creature&&renderer.sheet.complete&&renderer.sheet.naturalWidth){
           const nextWidth=renderer.canvas.clientWidth,nextHeight=renderer.canvas.clientHeight;
           if(renderer.width!==nextWidth||renderer.height!==nextHeight){renderer.width=renderer.canvas.width=nextWidth;renderer.height=renderer.canvas.height=nextHeight;}
           renderer.context.clearRect(0,0,renderer.width,renderer.height);
           renderer.context.imageSmoothingEnabled=false;
           const scale=Math.min(renderer.width/192,renderer.height/208),petWidth=192*scale,petHeight=208*scale;
           renderer.context.drawImage(renderer.sheet,renderer.frame*192,next.row*208,192,208,(renderer.width-petWidth)/2,(renderer.height-petHeight)/2,petWidth,petHeight);
+        }
+        if(renderer.creature){
+          renderer.root.dataset.animation=animationName;
+          renderer.root.style.transform=animationName.includes("running")?"translateX("+(Math.sin(time/180)*3)+"px)":animationName==="jumping"?"translateY("+(Math.sin(time/160)*6)+"px)":"";
         }
       }
       requestAnimationFrame(draw);
@@ -406,7 +422,7 @@ function requestHandler(params: StartOverlayParams): RequestListener {
         res.writeHead(404, commonHeaders).end();
         return;
       }
-      res.writeHead(200, { ...commonHeaders, "content-type": "image/svg+xml", "cache-control": "private, max-age=3600" });
+      res.writeHead(200, { ...commonHeaders, "content-type": "image/svg+xml", "cache-control": "no-store" });
       res.end(creatureSvg(asset.creature, asset.lobster));
       return;
     }

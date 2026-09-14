@@ -81,6 +81,11 @@ let panel = NSPanel(contentRect: NSRect(x: panelX, y: y, width: panelWidth, heig
 panel.level = NSWindow.Level.floating; panel.collectionBehavior = [NSWindow.CollectionBehavior.canJoinAllSpaces, NSWindow.CollectionBehavior.fullScreenAuxiliary, NSWindow.CollectionBehavior.stationary]
 panel.isOpaque = false; panel.backgroundColor = NSColor.clear; panel.hasShadow = false; panel.ignoresMouseEvents = clickThrough; panel.becomesKeyOnlyIfNeeded = true
 let web = WKWebView(frame: panel.contentView!.bounds); web.setValue(false, forKey: "drawsBackground")
+// Keep vector creature images crisp on Retina displays. Without an explicit
+// layer scale, WebKit can rasterize the transparent page at 1x and AppKit
+// enlarges that bitmap into the 2x overlay window.
+web.wantsLayer = true
+web.layer?.contentsScale = NSScreen.main?.backingScaleFactor ?? 1.0
 web.autoresizingMask = [.width, .height]
 var dragSurface: DragSurface?
 var petsHidden = false

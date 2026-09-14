@@ -23,14 +23,41 @@ function lobsterSvg(settings: LobsterSettings = {}): string {
   const [shell, claw] = lobsterPalettes[flavor] ?? lobsterPalettes.crimson;
   const merged = { ...lobsterDefaults, ...settings };
   const scale = merged.build === "squat" ? "1.08 .9" : merged.build === "slender" ? ".9 1.08" : "1 1";
-  const antennae = merged.antennae === "droopy" ? "M46 28Q38 19 25 25M74 28Q82 19 95 25" : "M46 28Q38 10 25 16M74 28Q82 10 95 16";
+  // These coordinates intentionally mirror OpenClaw's Lobsterdex renderer.
+  // The golden retro variant is the classic-logo geometry, not the standard
+  // two-claw dome with a different fill.
+  const retro = flavor === "retro" || flavor === "goldenretro";
+  const antennae = retro
+    ? "M50 16Q45 4 37 1M70 16Q75 4 83 1"
+    : merged.antennae === "droopy"
+      ? "M46 14Q36 8 34 18M74 14Q84 8 86 18"
+      : "M46 14Q38 4 31 7M74 14Q82 4 89 7";
   const accessory = merged.accessory === "crown" ? `<path d="m48 30 4-10 8 7 8-7 4 10Z" fill="#f4c531" stroke="#7e5520"/>` : merged.accessory === "sprout" ? `<path d="M60 30q-2-15-10-15M58 20q8-8 12-2" stroke="#55a85b" stroke-width="4" fill="none"/>` : merged.accessory === "monocle" ? `<circle cx="73" cy="49" r="8" fill="none" stroke="#f4c531" stroke-width="2"/>` : merged.accessory === "patch" ? `<path d="M51 58h18v11H51Z" fill="#f4c531" stroke="#7e5520"/>` : merged.accessory === "pumpkin" ? `<circle cx="60" cy="29" r="9" fill="#f28c28" stroke="#7e5520"/><path d="M60 20v-4" stroke="#55a85b" stroke-width="3"/>` : merged.accessory === "party" ? `<path d="m52 29 8-13 8 13Z" fill="#72c7ff" stroke="#245a82"/>` : merged.accessory === "barnacle" ? `<circle cx="33" cy="42" r="6" fill="#d7c08a" stroke="#7e5520"/>` : merged.accessory === "santa" ? `<path d="M47 29q13-17 26 0Z" fill="#e74b4b" stroke="#7e2a20"/><circle cx="73" cy="29" r="4" fill="#fff"/>` : "";
-  const tail = merged.tailFan ? `<path d="M45 84q15 14 30 0l-4 15-11-7-11 7Z" fill="${claw}"/>` : "";
+  // The Lobsterdex logo uses a small left shoulder claw; its tail fan is
+  // intentionally omitted from the retro identity rather than becoming two
+  // feet-like blobs beneath the body.
+  const tail = merged.tailFan && !retro ? `<g fill="${claw}"><ellipse cx="16" cy="84" rx="11" ry="7" transform="rotate(-32 16 84)"/><ellipse cx="104" cy="84" rx="11" ry="7" transform="rotate(32 104 84)"/></g>` : "";
   const freckles = merged.freckles ? `<g fill="#7e2a20"><circle cx="38" cy="59" r="2"/><circle cx="82" cy="59" r="2"/><circle cx="34" cy="66" r="2"/><circle cx="86" cy="66" r="2"/></g>` : "";
-  const eyes = merged.personality === "sleepy" ? `<path d="M43 49q4 4 8 0M69 49q4 4 8 0" stroke="#0a1014" stroke-width="3" fill="none"/>` : `<circle cx="47" cy="49" r="4" fill="#0a1014"/><circle cx="73" cy="49" r="4" fill="#0a1014"/>`;
+  const eyes = retro
+    ? `<g stroke="#0a1014" stroke-linecap="round" fill="none"><path d="M37 24L51 28" stroke-width="3.5"/><path d="M69 28L83 24" stroke-width="3.5"/></g><circle cx="45" cy="32" r="5.5" fill="#0a1014"/><circle cx="75" cy="32" r="5.5" fill="#0a1014"/><circle cx="46.5" cy="30.5" r="2.2" fill="#00e5cc"/><circle cx="76.5" cy="30.5" r="2.2" fill="#00e5cc"/>`
+    : merged.personality === "sleepy"
+      ? `<path d="M39 33Q45 28 51 33M69 33Q75 28 81 33" stroke="#0a1014" stroke-width="3" fill="none"/>`
+      : `<circle cx="45" cy="32" r="5.5" fill="#0a1014"/><circle cx="75" cy="32" r="5.5" fill="#0a1014"/><circle cx="46.5" cy="30.5" r="2.2" fill="#00e5cc"/><circle cx="76.5" cy="30.5" r="2.2" fill="#00e5cc"/>`;
   const clawWidth = merged.clawSize === "dainty" ? 3 : merged.clawSize === "mighty" ? 6 : 4;
   const mouth = merged.personality === "showoff" ? "M47 75q13 12 26 0" : merged.personality === "zoomy" ? "M50 76q10 4 20 0" : "M49 76q11 8 22 0";
-  return `<svg viewBox="0 0 120 105" xmlns="http://www.w3.org/2000/svg"><g transform="translate(60 0) scale(${scale}) translate(-60 0)"><g stroke="${claw}" stroke-width="${clawWidth}" stroke-linecap="round" fill="none"><path d="${antennae}"/><path d="M20 64 5 54M100 64l15-10"/></g>${accessory}<ellipse cx="60" cy="65" rx="38" ry="28" fill="${shell}"/><path d="M28 55Q5 42 6 62q1 18 24 8M92 55q23-13 22 7-1 18-24 8" fill="${claw}"/>${eyes}<path d="${mouth}" stroke="#7e2a20" stroke-width="3" fill="none"/>${freckles}${tail}</g></svg>`;
+  const standardClaws = `<g class="lob-claw lob-claw--l"><path d="M20 42C5 37 0 47 5 57C10 67 20 62 25 52C28 45 25 42 20 42Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g><g class="lob-claw lob-claw--r"><path d="M100 42C115 37 120 47 115 57C110 67 100 62 95 52C92 45 95 42 100 42Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g>`;
+  const retroLeftClaw = `<g class="lob-claw lob-claw--l"><path d="M24 57C10 51 5 58 10 67C15 75 24 71 29 63C31 59 29 57 24 57Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g>`;
+  const megaClaw = `<g class="lob-claw lob-claw--r"><path d="M95 55C112 53 119 39 116 25C113 11 99 5 91 12C88 15 87 19 88 23C83 27 83 36 88 43C91 49 93 52 95 55Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><path d="M92 14C97 22 99 31 95 41" stroke="${flavor === "goldenretro" ? "#b8860b" : "#b8151b"}" stroke-width="3" stroke-linecap="round" fill="none"/></g>`;
+  const body = `<path class="lob-standard-dome" d="M60 8C32 8 16 32 16 52C16 72 30 90 44 95L44 104L54 104L54 96C58 97.5 62 97.5 66 96L66 104L76 104L76 95C90 90 104 72 104 52C104 32 88 8 60 8Z" fill="${shell}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>`;
+  const highlight = flavor === "goldenretro" ? `<path d="M31 27Q48 11 68 14" stroke="#fff3a6" stroke-width="4" stroke-linecap="round" opacity=".7" fill="none"/><path d="M42 67Q60 79 78 67" stroke="#f8d96b" stroke-width="3" opacity=".6" fill="none"/>` : `<ellipse cx="48" cy="28" rx="20" ry="11" fill="#ffffff" opacity=".1"/>`;
+  const retroFace = retro ? `<path d="M49 45Q59 51 69 45L72 42" stroke="#0a1014" stroke-width="3" stroke-linecap="round" fill="none"/>` : `<path d="${mouth}" stroke="#7e2a20" stroke-width="3" fill="none"/>`;
+  // Keep the built-in source free of blur filters. The native overlay may
+  // render its WebView at a different backing scale; a filtered SVG gets
+  // cached as a bitmap and then enlarged, producing a fuzzy colored fringe.
+  // Give the SVG a large intrinsic surface as well as a viewBox. The
+  // geometry remains vector and the CSS scales it down to the pet box; this
+  // avoids handing WebKit a tiny intrinsic image that it may cache at 1x.
+  return `<svg width="480" height="420" viewBox="0 0 120 105" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" xmlns="http://www.w3.org/2000/svg"><g transform="translate(60 0) scale(${scale}) translate(-60 0)"><g stroke="${claw}" stroke-width="${clawWidth}" stroke-linecap="round" fill="none"><path d="${antennae}"/>${retro ? "" : "<path d=\"M20 42L5 37M100 42l15-5\"/>"}</g>${retro ? retroLeftClaw + megaClaw : standardClaws}${body}${highlight}${eyes}${retroFace}${freckles}${accessory}</g></svg>`;
 }
 
 // These compact SVGs are adapted from OpenClaw's lobster-pet sprite system.

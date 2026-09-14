@@ -538,6 +538,9 @@ describe("overlay lifecycle", () => {
     expect(body).toContain("renderActivity(state.sources)");
     expect(body).toContain("openclaw-pet://resize?size=");
     expect(body).toContain("&offsetX=");
+    expect(body).toContain('fetch("/creatures/"+encodeURIComponent(creature)+".svg?v=lobsterdex-20260913"');
+    expect(body).toContain('svg.classList.add("creature-svg")');
+    expect(body).toContain("svg.creature-svg{width:100%;height:100%;margin:0;display:block;overflow:visible;pointer-events:none;shape-rendering:geometricPrecision}");
     expect(body).toContain('sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp"');
     expect(body).toContain(".pet-hidden #pets{display:none}");
     expect(body).toContain('toggle.textContent=hidden?"Show":"Hide"');
