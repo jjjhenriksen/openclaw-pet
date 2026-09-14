@@ -16,7 +16,7 @@ Both native helpers load the same renderer from the loopback server. If that ren
 
 ## Setup
 
-1. For each custom displayed pet, put `pet.json` and a 1536-pixel-wide `spritesheet.webp` with 208-pixel animation rows in a directory on the display host. For the built-in OpenClaw creatures, set `creature` to `lobster`, `crab`, `snail`, `duck`, or `jellyfish` instead.
+1. For each custom displayed pet, put `pet.json` and a 1536-pixel-wide `spritesheet.webp` with 208-pixel animation rows in a directory on the display host. For the built-in OpenClaw creatures, set `creature` to `lobster`, `crab`, `snail`, `duck`, or `jellyfish` instead. Lobsters additionally support all 42 OpenClaw flavors through `lobster.flavor` and optional trait settings.
 2. Build on the OS where the plugin will run:
 
    ```bash
@@ -65,6 +65,26 @@ Example plugin entry:
   }
 }
 ```
+
+Example lobster settings:
+
+```json
+{
+  "creature": "lobster",
+  "lobster": {
+    "flavor": "blue",
+    "personality": "showoff",
+    "build": "round",
+    "clawSize": "mighty",
+    "antennae": "perky",
+    "accessory": "crown",
+    "tailFan": true,
+    "freckles": false
+  }
+}
+```
+
+`flavor` selects one of: `crimson`, `blue`, `gold`, `lumen`, `magma`, `oilslick`, `aurora`, `nebula`, `banana`, `mood`, `bee`, `rubberduck`, `watermelon`, `clawtron`, `selene`, `geode`, `ghost`, `glass`, `split`, `sourdough`, `zombie`, `plush`, `balloon`, `cryptid`, `flatpack`, `tinfoil`, `actual`, `cottoncandy`, `disco`, `chimera`, `pixel`, `blueprint`, `phosphor`, `ascii`, `portal`, `notexture`, `loading`, `eclipse`, `heisenbug`, `invisible`, `retro`, or `goldenretro`. Source-level settings in `sources[]` override the top-level lobster settings.
 
 `hooks.allowConversationAccess` lets OpenClaw deliver the lifecycle events needed for completion/failure states. The legacy `assetDir` form remains supported and creates one source named `local`.
 

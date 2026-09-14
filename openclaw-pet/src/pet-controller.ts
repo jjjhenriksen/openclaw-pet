@@ -15,11 +15,28 @@ export const ANIMATIONS = {
 
 export type Animation = keyof typeof ANIMATIONS;
 export type CreatureKind = "lobster" | "crab" | "snail" | "duck" | "jellyfish";
+export type LobsterFlavor =
+  | "crimson" | "blue" | "gold" | "lumen" | "magma" | "oilslick" | "aurora" | "nebula" | "banana"
+  | "mood" | "bee" | "rubberduck" | "watermelon" | "clawtron" | "selene" | "geode" | "ghost" | "glass"
+  | "split" | "sourdough" | "zombie" | "plush" | "balloon" | "cryptid" | "flatpack" | "tinfoil" | "actual"
+  | "cottoncandy" | "disco" | "chimera" | "pixel" | "blueprint" | "phosphor" | "ascii" | "portal" | "notexture"
+  | "loading" | "eclipse" | "heisenbug" | "invisible" | "retro" | "goldenretro";
+export type LobsterSettings = {
+  flavor?: LobsterFlavor;
+  personality?: "sleepy" | "zoomy" | "friendly" | "showoff";
+  antennae?: "perky" | "droopy";
+  build?: "round" | "squat" | "slender";
+  clawSize?: "dainty" | "regular" | "mighty";
+  accessory?: "none" | "crown" | "sprout" | "patch" | "santa" | "pumpkin" | "party" | "barnacle" | "monocle";
+  tailFan?: boolean;
+  freckles?: boolean;
+};
 export type PetSourceConfig = {
   id: string;
   label?: string;
   assetDir?: string;
   creature?: CreatureKind;
+  lobster?: LobsterSettings;
   size?: number;
   gateway?: {
     url: string;
@@ -31,6 +48,7 @@ export type PetSourceConfig = {
 export type PetConfig = {
   assetDir?: string;
   creature?: CreatureKind;
+  lobster?: LobsterSettings;
   sources?: PetSourceConfig[];
   enabled?: boolean;
   idleDelayMs?: number;
@@ -67,7 +85,7 @@ export function validateAssets(assetDir?: string, creature?: CreatureKind): Pick
 }
 
 export function createPetController(config: PetConfig = {}) {
-  let validation = validateAssets(config.assetDir);
+  let validation = validateAssets(config.assetDir, config.creature);
   let animation: Animation = "idle";
   let changedAt = Date.now();
   let activeRuns = 0;
@@ -85,7 +103,7 @@ export function createPetController(config: PetConfig = {}) {
     idleTimer = setTimeout(() => set("idle", "idle", "Ready"), config.idleDelayMs ?? 2500);
   };
   return {
-    initialize: () => (validation = validateAssets(config.assetDir)),
+    initialize: () => (validation = validateAssets(config.assetDir, config.creature)),
     snapshot: (): PetSnapshot => ({ ...validation, animation, changedAt, activeRuns, activityCount, lastEvent, activityLabel, activity, message: validation.valid ? `Pet is ${animation}; last event: ${lastEvent}.` : validation.message }),
     statusText: () => { const s = validation.valid ? { ...validation, animation, activeRuns, activityCount, lastEvent } : validation; return s.valid ? `Pet: ${animation}; activity: ${activityLabel}; last event: ${lastEvent}; activity count: ${activityCount}.` : s.message; },
     reset: () => { activeRuns = 0; clearTimeout(idleTimer); set("idle", "manual-reset", "Ready"); record("Reset to ready", "neutral"); return { ...validation, animation, changedAt, activeRuns, activityCount, lastEvent, activityLabel, activity, message: "Pet reset to idle." }; },

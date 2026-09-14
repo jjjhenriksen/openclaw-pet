@@ -1,5 +1,5 @@
 import { parseBridgeSnapshot, toSanitizedPetState, type PetBridgeSnapshot, type SanitizedPetState } from "./bridge.js";
-import { validateAssets, type CreatureKind, type PetConfig, type PetSnapshot, type PetSourceConfig } from "./pet-controller.js";
+import { validateAssets, type CreatureKind, type LobsterSettings, type PetConfig, type PetSnapshot, type PetSourceConfig } from "./pet-controller.js";
 import { isCreatureKind } from "./creatures.js";
 
 export const BRIDGE_SNAPSHOT_METHOD = "openclaw-pet.bridge.snapshot";
@@ -12,6 +12,7 @@ export type DisplaySourceAsset = {
   label: string;
   assetDir?: string;
   creature?: CreatureKind;
+  lobster?: LobsterSettings;
   size?: number;
 };
 
@@ -19,6 +20,8 @@ export type DisplaySourceState = {
   id: string;
   label: string;
   available: boolean;
+  creature?: CreatureKind;
+  lobster?: LobsterSettings;
   state: SanitizedPetState;
 };
 
@@ -109,6 +112,7 @@ export function resolvePetSources(config: PetConfig): ResolvedSource[] {
     const id = normalizeSourceId(source.id);
     const assetDir = source.assetDir ?? config.assetDir;
     const creature = source.creature ?? config.creature;
+    const lobster = source.lobster ?? config.lobster;
     const size = normalizeSourceSize(source.size);
     const gateway = normalizeGateway(source.gateway);
     if (source.gateway && !gateway) continue;
@@ -119,6 +123,7 @@ export function resolvePetSources(config: PetConfig): ResolvedSource[] {
       label: normalizeSourceLabel(source.label, id),
       ...(assetDir ? { assetDir } : {}),
       ...(isCreatureKind(creature) ? { creature } : {}),
+      ...(creature === "lobster" && lobster ? { lobster } : {}),
       ...(size ? { size } : {}),
       ...(gateway ? { gateway } : {}),
     });
@@ -207,11 +212,12 @@ export class SourceCoordinator {
   }
 
   assets(): DisplaySourceAsset[] {
-    return this.displaySources.map(({ id, label, assetDir, creature, size }) => ({
+    return this.displaySources.map(({ id, label, assetDir, creature, lobster, size }) => ({
       id,
       label,
       ...(assetDir ? { assetDir } : {}),
       ...(creature ? { creature } : {}),
+      ...(lobster ? { lobster } : {}),
       ...(size ? { size } : {}),
     }));
   }

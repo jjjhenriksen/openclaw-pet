@@ -9,6 +9,20 @@
     "properties": {
       "assetDir": { "type": "string", "description": "Absolute path containing pet.json and spritesheet.webp." },
       "creature": { "type": "string", "enum": ["lobster", "crab", "snail", "duck", "jellyfish"], "description": "Built-in OpenClaw creature art. Use this instead of assetDir for a local creature pet." },
+      "lobster": {
+        "type": "object", "additionalProperties": false,
+        "description": "Optional lobster look settings. Flavor selects one of the 42 OpenClaw palette variants; other fields customize its traits.",
+        "properties": {
+          "flavor": { "type": "string", "enum": ["crimson", "blue", "gold", "lumen", "magma", "oilslick", "aurora", "nebula", "banana", "mood", "bee", "rubberduck", "watermelon", "clawtron", "selene", "geode", "ghost", "glass", "split", "sourdough", "zombie", "plush", "balloon", "cryptid", "flatpack", "tinfoil", "actual", "cottoncandy", "disco", "chimera", "pixel", "blueprint", "phosphor", "ascii", "portal", "notexture", "loading", "eclipse", "heisenbug", "invisible", "retro", "goldenretro"], "default": "crimson" },
+          "personality": { "type": "string", "enum": ["sleepy", "zoomy", "friendly", "showoff"], "default": "friendly" },
+          "antennae": { "type": "string", "enum": ["perky", "droopy"], "default": "perky" },
+          "build": { "type": "string", "enum": ["round", "squat", "slender"], "default": "round" },
+          "clawSize": { "type": "string", "enum": ["dainty", "regular", "mighty"], "default": "regular" },
+          "accessory": { "type": "string", "enum": ["none", "crown", "sprout", "patch", "santa", "pumpkin", "party", "barnacle", "monocle"], "default": "none" },
+          "tailFan": { "type": "boolean", "default": true },
+          "freckles": { "type": "boolean", "default": false }
+        }
+      },
       "sources": {
         "type": "array",
         "minItems": 1,
@@ -22,6 +36,7 @@
             "label": { "type": "string", "minLength": 1, "maxLength": 64 },
             "assetDir": { "type": "string", "description": "Display-host-local path containing this pet's assets. Falls back to top-level assetDir and is never sent over the bridge." },
             "creature": { "type": "string", "enum": ["lobster", "crab", "snail", "duck", "jellyfish"], "description": "Built-in OpenClaw creature art for this display source." },
+            "lobster": { "$ref": "#/properties/lobster" },
             "size": { "type": "integer", "minimum": 96, "maximum": 768, "description": "Optional startup size for this source on the display host." },
             "gateway": {
               "type": "object",

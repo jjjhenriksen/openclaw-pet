@@ -37,9 +37,13 @@
     "vitest": "^3.2.0"
   },
   "openclaw": {
-    "extensions": [
-      "./dist/index.js"
-    ]
+    "extensions": ["./dist/index.js"],
+    "compat": {
+      "pluginApi": ">=2026.9.4"
+    },
+    "build": {
+      "openclawVersion": "2026.9.4"
+    }
   },
   "engines": {
     "node": ">=24.15.0 <25",

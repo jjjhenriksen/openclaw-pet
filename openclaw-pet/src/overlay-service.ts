@@ -163,13 +163,18 @@ export function calculateOverlayDimensions(size: number, sourceCount: number, sh
   };
 }
 
-export function toOverlayState(snapshot: DisplaySnapshot, petSize: number, windowOffset: { x: number; y: number } = { x: 0, y: 0 }): OverlayState {
+export function toOverlayState(snapshot: DisplaySnapshot, petSize: number, windowOffset: { x: number; y: number } = { x: 0, y: 0 }, assets: DisplaySourceAsset[] = []): OverlayState {
+  const assetById = new Map(assets.map((asset) => [asset.id, asset]));
   return {
     layout: { petSize, sourceCount: snapshot.sources.length, windowOffset },
     sources: snapshot.sources.map(({ id, label, available, state }) => ({
       id,
       label,
       available,
+      ...(() => {
+        const asset = assetById.get(id);
+        return asset?.creature ? { creature: asset.creature, ...(asset.lobster ? { lobster: asset.lobster } : {}) } : {};
+      })(),
       state: {
         animation: state.animation,
         changedAt: state.changedAt,
@@ -366,7 +371,7 @@ function requestHandler(params: StartOverlayParams): RequestListener {
     }
     if (path === "/state") {
       res.writeHead(200, { ...commonHeaders, "content-type": "application/json", "cache-control": "no-store" });
-      res.end(JSON.stringify(toOverlayState(params.getSnapshot(), effectiveOverlaySize(params), effectiveWindowOffset(params))));
+        res.end(JSON.stringify(toOverlayState(params.getSnapshot(), effectiveOverlaySize(params), effectiveWindowOffset(params), params.assets)));
       return;
     }
     const assetMatch = path?.match(/^\/assets\/([a-zA-Z0-9_-]{1,32})\/spritesheet\.webp$/);
@@ -402,7 +407,7 @@ function requestHandler(params: StartOverlayParams): RequestListener {
         return;
       }
       res.writeHead(200, { ...commonHeaders, "content-type": "image/svg+xml", "cache-control": "private, max-age=3600" });
-      res.end(creatureSvg(asset.creature));
+      res.end(creatureSvg(asset.creature, asset.lobster));
       return;
     }
     res.writeHead(404, commonHeaders).end();

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ANIMATIONS, createPetController, validateAssets } from "./pet-controller.js";
+import { creatureSvg } from "./creatures.js";
 
 describe("pet animation contract", () => {
   it("preserves the fixed Codex-compatible atlas layout", () => {
@@ -10,6 +11,14 @@ describe("pet animation contract", () => {
 
   it("reports a safe error when assets are not configured", () => {
     expect(validateAssets()).toMatchObject({ valid: false, lastError: "assetDir is required" });
+  });
+
+  it("renders lobster flavor and trait settings into the local SVG", () => {
+    const blue = creatureSvg("lobster", { flavor: "blue", personality: "sleepy", build: "slender", clawSize: "mighty", accessory: "crown", tailFan: false, freckles: true });
+    expect(blue).toContain("#4a7dfc");
+    expect(blue).toContain("stroke-width=\"6\"");
+    expect(blue).toContain("#f4c531");
+    expect(blue).not.toContain("M45 84q15 14");
   });
 
   it("keeps overlapping runs active until all runs complete", () => {
