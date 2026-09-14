@@ -36,6 +36,12 @@ const config: PetConfig = {
 };
 
 describe("pet source configuration", () => {
+  it("supports a built-in OpenClaw creature without an atlas path", () => {
+    expect(resolvePetSources({ creature: "crab" })).toEqual([
+      { id: "local", label: "Local", creature: "crab" },
+    ]);
+  });
+
   it("keeps the legacy assetDir as one local source", () => {
     expect(resolvePetSources({ assetDir: "/assets/legacy" })).toEqual([
       { id: "local", label: "Local", assetDir: "/assets/legacy" },

@@ -16,7 +16,7 @@ Both native helpers load the same renderer from the loopback server. If that ren
 
 ## Setup
 
-1. For each displayed pet, put `pet.json` and a 1536-pixel-wide `spritesheet.webp` with 208-pixel animation rows in a directory on the display host.
+1. For each custom displayed pet, put `pet.json` and a 1536-pixel-wide `spritesheet.webp` with 208-pixel animation rows in a directory on the display host. For the built-in OpenClaw creatures, set `creature` to `lobster`, `crab`, `snail`, `duck`, or `jellyfish` instead.
 2. Build on the OS where the plugin will run:
 
    ```bash
@@ -67,6 +67,8 @@ Example plugin entry:
 ```
 
 `hooks.allowConversationAccess` lets OpenClaw deliver the lifecycle events needed for completion/failure states. The legacy `assetDir` form remains supported and creates one source named `local`.
+
+The built-in creature SVGs are adapted from OpenClaw's canonical lobster-pet art and are served locally by the display host. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for source paths and MIT attribution.
 
 ## Multiple local and remote sources
 

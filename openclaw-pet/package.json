@@ -18,6 +18,7 @@
     "dist/pet-overlay-win.exe",
     "openclaw.plugin.json",
     "README.md",
+    "THIRD_PARTY_NOTICES.md",
     "VERIFICATION.md",
     "overlay/pet-overlay.swift",
     "overlay/windows/OpenClawPetOverlay.csproj",

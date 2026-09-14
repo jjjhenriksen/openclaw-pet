@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ANIMATIONS } from "./pet-controller.js";
+import { creatureSvg } from "./creatures.js";
 import type { DisplaySnapshot, DisplaySourceAsset, DisplaySourceState } from "./source-coordinator.js";
 
 export const MIN_OVERLAY_SIZE = 96;
@@ -270,8 +271,10 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
       root.append(canvas);
       pets.append(root);
       const sheet=new Image();
-      sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp";
-      const renderer={root,canvas,context:canvas.getContext("2d"),sheet,source,animation:"idle",frame:0,nextFrameAt:0,width:0,height:0};
+      const creature=source.creature;
+      if(creature) sheet.src="/creatures/"+encodeURIComponent(creature)+".svg";
+      else sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp";
+      const renderer={root,canvas,context:canvas.getContext("2d"),sheet,source,animation:"idle",frame:0,nextFrameAt:0,width:0,height:0,creature};
       renderers.set(source.id,renderer);
       return renderer;
     }
@@ -325,7 +328,10 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
         const next=animations[animationName]||animations.idle;
         if(renderer.animation!==animationName){renderer.animation=animationName;renderer.frame=0;renderer.nextFrameAt=time;}
         if(time>=renderer.nextFrameAt){renderer.frame=(renderer.frame+1)%next.frames;renderer.nextFrameAt=time+next.durations[renderer.frame];}
-        if(renderer.sheet.complete&&renderer.sheet.naturalWidth){
+        if(renderer.creature){
+          renderer.root.dataset.animation=animationName;
+          renderer.root.style.transform=animationName.includes("running")?"translateX("+(Math.sin(time/180)*3)+"px)":animationName==="jumping"?"translateY("+(Math.sin(time/160)*6)+"px)":"";
+        } else if(renderer.sheet.complete&&renderer.sheet.naturalWidth){
           const nextWidth=renderer.canvas.clientWidth,nextHeight=renderer.canvas.clientHeight;
           if(renderer.width!==nextWidth||renderer.height!==nextHeight){renderer.width=renderer.canvas.width=nextWidth;renderer.height=renderer.canvas.height=nextHeight;}
           renderer.context.clearRect(0,0,renderer.width,renderer.height);
@@ -370,6 +376,10 @@ function requestHandler(params: StartOverlayParams): RequestListener {
         res.writeHead(404, commonHeaders).end();
         return;
       }
+      if (!asset.assetDir) {
+        res.writeHead(404, commonHeaders).end();
+        return;
+      }
       const file = join(asset.assetDir, "spritesheet.webp");
       if (!existsSync(file)) {
         res.writeHead(404, commonHeaders).end();
@@ -382,6 +392,17 @@ function requestHandler(params: StartOverlayParams): RequestListener {
         if (!res.headersSent) res.writeHead(404, commonHeaders);
         res.end();
       }
+      return;
+    }
+    const creatureMatch = path?.match(/^\/creatures\/([a-zA-Z0-9_-]{1,32})\.svg$/);
+    if (creatureMatch) {
+      const asset = params.assets.find((candidate) => candidate.creature === creatureMatch[1]);
+      if (!asset || !asset.creature) {
+        res.writeHead(404, commonHeaders).end();
+        return;
+      }
+      res.writeHead(200, { ...commonHeaders, "content-type": "image/svg+xml", "cache-control": "private, max-age=3600" });
+      res.end(creatureSvg(asset.creature));
       return;
     }
     res.writeHead(404, commonHeaders).end();

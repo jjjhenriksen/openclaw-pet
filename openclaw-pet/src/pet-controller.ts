@@ -14,10 +14,12 @@ export const ANIMATIONS = {
 } as const;
 
 export type Animation = keyof typeof ANIMATIONS;
+export type CreatureKind = "lobster" | "crab" | "snail" | "duck" | "jellyfish";
 export type PetSourceConfig = {
   id: string;
   label?: string;
   assetDir?: string;
+  creature?: CreatureKind;
   size?: number;
   gateway?: {
     url: string;
@@ -28,6 +30,7 @@ export type PetSourceConfig = {
 };
 export type PetConfig = {
   assetDir?: string;
+  creature?: CreatureKind;
   sources?: PetSourceConfig[];
   enabled?: boolean;
   idleDelayMs?: number;
@@ -52,7 +55,8 @@ function webpDimensions(buffer: Buffer): { width: number; height: number } | nul
   return null;
 }
 
-export function validateAssets(assetDir?: string): Pick<PetSnapshot, "valid" | "assetDir" | "lastError" | "message"> {
+export function validateAssets(assetDir?: string, creature?: CreatureKind): Pick<PetSnapshot, "valid" | "assetDir" | "lastError" | "message"> {
+  if (creature) return { valid: true, message: "Built-in OpenClaw creature is ready." };
   if (!assetDir) return { valid: false, lastError: "assetDir is required", message: "Pet disabled: configure assetDir." };
   const manifest = join(assetDir, "pet.json"), sheet = join(assetDir, "spritesheet.webp");
   if (!existsSync(manifest) || !existsSync(sheet)) return { valid: false, lastError: "missing required pet files", message: "Pet disabled: pet.json and spritesheet.webp are required." };

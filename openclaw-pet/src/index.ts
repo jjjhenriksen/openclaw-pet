@@ -13,8 +13,10 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
   description: "A privacy-preserving desktop pet that reflects OpenClaw activity.",
   register(api) {
     const config = (api.pluginConfig ?? {}) as PetConfig;
-    const controllerAssetDir = config.assetDir ?? config.sources?.find((source) => !source.gateway)?.assetDir;
-    const pet = createPetController({ ...config, assetDir: controllerAssetDir });
+    const localSource = config.sources?.find((source) => !source.gateway);
+    const controllerAssetDir = config.assetDir ?? localSource?.assetDir;
+    const controllerCreature = config.creature ?? localSource?.creature;
+    const pet = createPetController({ ...config, assetDir: controllerAssetDir, creature: controllerCreature });
     const sources = new SourceCoordinator({ config, getLocalSnapshot: () => pet.snapshot(), logger: api.logger });
     let overlaySize = normalizeOverlaySize(config?.overlay?.size) ?? 160;
     const sourceSizes = new Map<string, number>();

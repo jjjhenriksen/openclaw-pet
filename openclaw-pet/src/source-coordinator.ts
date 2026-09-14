@@ -1,5 +1,6 @@
 import { parseBridgeSnapshot, toSanitizedPetState, type PetBridgeSnapshot, type SanitizedPetState } from "./bridge.js";
-import { validateAssets, type PetConfig, type PetSnapshot, type PetSourceConfig } from "./pet-controller.js";
+import { validateAssets, type CreatureKind, type PetConfig, type PetSnapshot, type PetSourceConfig } from "./pet-controller.js";
+import { isCreatureKind } from "./creatures.js";
 
 export const BRIDGE_SNAPSHOT_METHOD = "openclaw-pet.bridge.snapshot";
 export const DEFAULT_REMOTE_POLL_INTERVAL_MS = 1_000;
@@ -9,7 +10,8 @@ export const MAX_BRIDGE_RESPONSE_BYTES = 32 * 1024;
 export type DisplaySourceAsset = {
   id: string;
   label: string;
-  assetDir: string;
+  assetDir?: string;
+  creature?: CreatureKind;
   size?: number;
 };
 
@@ -98,7 +100,7 @@ function normalizeGateway(gateway: PetSourceConfig["gateway"]): PetSourceConfig[
 export function resolvePetSources(config: PetConfig): ResolvedSource[] {
   const configured = config.sources?.length
     ? config.sources
-    : config.assetDir
+    : config.assetDir || config.creature
       ? [{ id: "local", label: "Local", assetDir: config.assetDir }]
       : [];
   const seen = new Set<string>();
@@ -106,15 +108,17 @@ export function resolvePetSources(config: PetConfig): ResolvedSource[] {
   for (const source of configured) {
     const id = normalizeSourceId(source.id);
     const assetDir = source.assetDir ?? config.assetDir;
+    const creature = source.creature ?? config.creature;
     const size = normalizeSourceSize(source.size);
     const gateway = normalizeGateway(source.gateway);
     if (source.gateway && !gateway) continue;
-    if (!id || seen.has(id) || typeof assetDir !== "string" || assetDir.length === 0) continue;
+    if (!id || seen.has(id) || (typeof assetDir !== "string" && !isCreatureKind(creature))) continue;
     seen.add(id);
     result.push({
       id,
       label: normalizeSourceLabel(source.label, id),
-      assetDir,
+      ...(assetDir ? { assetDir } : {}),
+      ...(isCreatureKind(creature) ? { creature } : {}),
       ...(size ? { size } : {}),
       ...(gateway ? { gateway } : {}),
     });
@@ -184,7 +188,7 @@ export class SourceCoordinator {
       }
     }
     this.displaySources = this.sources.filter((source) => {
-      const valid = options.validateAssetDir?.(source.assetDir) ?? validateAssets(source.assetDir).valid;
+      const valid = options.validateAssetDir?.(source.assetDir ?? "") ?? validateAssets(source.assetDir, source.creature).valid;
       if (!valid) options.logger.warn(`OpenClaw Pet source ${source.id} has invalid display assets and will be skipped.`);
       return valid;
     });
@@ -203,10 +207,11 @@ export class SourceCoordinator {
   }
 
   assets(): DisplaySourceAsset[] {
-    return this.displaySources.map(({ id, label, assetDir, size }) => ({
+    return this.displaySources.map(({ id, label, assetDir, creature, size }) => ({
       id,
       label,
-      assetDir,
+      ...(assetDir ? { assetDir } : {}),
+      ...(creature ? { creature } : {}),
       ...(size ? { size } : {}),
     }));
   }
