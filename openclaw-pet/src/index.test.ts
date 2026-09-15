@@ -74,6 +74,7 @@ describe("pet animation contract", () => {
       bee: "bee", rubberduck: "rubberduck", watermelon: "watermelon", clawtron: "clawtron", selene: "selene", geode: "split",
       glass: "glass", sourdough: "sourdough", zombie: "zombie", plush: "plush", disco: "disco", blueprint: "blueprint",
       phosphor: "phosphor", heisenbug: "heisenbug", notexture: "notexture", eclipse: "eclipse", chimera: "chimera", tinfoil: "tinfoil",
+      ghost: "ghost", cottoncandy: "cottoncandy", cryptid: "cryptid", invisible: "invisible",
       split: "split", flatpack: "flatpack", loading: "loading", actual: "actual", balloon: "balloon", ascii: "ascii", portal: "portal", pixel: "pixel",
     };
     for (const [flavor, layer] of Object.entries(expectedLayers)) {
@@ -95,6 +96,26 @@ describe("pet animation contract", () => {
   it("keeps the Lobsterdex palette inventory at 42 entries", () => {
     expect(LOBSTER_FLAVORS).toHaveLength(42);
     expect(new Set(LOBSTER_FLAVORS).size).toBe(42);
+  });
+
+  it("does not collapse canonical variants into an unmarked shared render", () => {
+    const canonicalSignatures: Record<string, string> = {
+      crimson: "#ff4f40", blue: "#4a7dfc", gold: "#f4b840", mood: "#7f77dd",
+      lumen: 'data-layer="lumen"', magma: 'data-layer="magma"', oilslick: 'data-layer="oilslick"', aurora: 'data-layer="aurora"',
+      nebula: 'data-layer="nebula"', banana: 'data-layer="banana"', bee: 'data-layer="bee"', rubberduck: 'data-layer="rubberduck"',
+      watermelon: 'data-layer="watermelon"', clawtron: 'data-layer="clawtron"', selene: 'data-layer="selene"', geode: 'data-layer="geode"',
+      ghost: 'data-layer="ghost"', glass: 'data-layer="glass"', split: 'data-layer="split"', sourdough: 'data-layer="sourdough"',
+      zombie: 'data-layer="zombie"', plush: 'data-layer="plush"', balloon: 'data-layer="balloon"', cryptid: 'data-layer="cryptid"',
+      flatpack: 'data-layer="flatpack"', tinfoil: 'data-layer="tinfoil"', actual: 'data-layer="actual"', cottoncandy: 'data-layer="cottoncandy"',
+      disco: 'data-layer="disco"', chimera: 'data-layer="chimera"', pixel: 'data-layer="pixel"', blueprint: 'data-layer="blueprint"',
+      phosphor: 'data-layer="phosphor"', ascii: 'data-layer="ascii"', portal: 'data-layer="portal"', notexture: 'data-layer="notexture"',
+      loading: 'data-layer="loading"', eclipse: 'data-layer="eclipse"', heisenbug: 'data-layer="heisenbug"', invisible: 'data-layer="invisible"',
+      retro: 'data-layer="claws" class="lob-claw lob-claw--r"', goldenretro: 'data-layer="claws" class="lob-claw lob-claw--r"',
+    };
+    expect(Object.keys(canonicalSignatures)).toHaveLength(42);
+    for (const flavor of LOBSTER_FLAVORS) {
+      expect(creatureSvg("lobster", { flavor }), flavor).toContain(canonicalSignatures[flavor]);
+    }
   });
 
   it("keeps overlapping runs active until all runs complete", () => {
