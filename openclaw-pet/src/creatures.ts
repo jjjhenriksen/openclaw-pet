@@ -1,5 +1,13 @@
 import type { CreatureKind, LobsterFlavor, LobsterSettings } from "./pet-controller.js";
 
+/** The complete Lobsterdex palette contract, kept in canonical display order. */
+export const LOBSTER_FLAVORS = [
+  "crimson", "blue", "gold", "lumen", "magma", "oilslick", "aurora", "nebula", "banana", "mood", "bee", "rubberduck",
+  "watermelon", "clawtron", "selene", "geode", "ghost", "glass", "split", "sourdough", "zombie", "plush", "balloon", "cryptid",
+  "flatpack", "tinfoil", "actual", "cottoncandy", "disco", "chimera", "pixel", "blueprint", "phosphor", "ascii", "portal", "notexture",
+  "loading", "eclipse", "heisenbug", "invisible", "retro", "goldenretro",
+] as const satisfies readonly LobsterFlavor[];
+
 const lobsterPalettes: Record<LobsterFlavor, [string, string]> = {
   crimson: ["#ff4f40", "#ff775f"], blue: ["#4a7dfc", "#7fa4ff"], gold: ["#f4b840", "#f9d47a"], lumen: ["#1d2f4e", "#2e4a77"],
   magma: ["#7d332a", "#b04d3d"], oilslick: ["#303746", "#566174"], aurora: ["#dce6f0", "#9fd6d0"], nebula: ["#34255c", "#7f61c5"],
@@ -32,32 +40,42 @@ function lobsterSvg(settings: LobsterSettings = {}): string {
     : merged.antennae === "droopy"
       ? "M46 14Q36 8 34 18M74 14Q84 8 86 18"
       : "M46 14Q38 4 31 7M74 14Q82 4 89 7";
-  const accessory = merged.accessory === "crown" ? `<path d="m48 30 4-10 8 7 8-7 4 10Z" fill="#f4c531" stroke="#7e5520"/>` : merged.accessory === "sprout" ? `<path d="M60 30q-2-15-10-15M58 20q8-8 12-2" stroke="#55a85b" stroke-width="4" fill="none"/>` : merged.accessory === "monocle" ? `<circle cx="73" cy="49" r="8" fill="none" stroke="#f4c531" stroke-width="2"/>` : merged.accessory === "patch" ? `<path d="M51 58h18v11H51Z" fill="#f4c531" stroke="#7e5520"/>` : merged.accessory === "pumpkin" ? `<circle cx="60" cy="29" r="9" fill="#f28c28" stroke="#7e5520"/><path d="M60 20v-4" stroke="#55a85b" stroke-width="3"/>` : merged.accessory === "party" ? `<path d="m52 29 8-13 8 13Z" fill="#72c7ff" stroke="#245a82"/>` : merged.accessory === "barnacle" ? `<circle cx="33" cy="42" r="6" fill="#d7c08a" stroke="#7e5520"/>` : merged.accessory === "santa" ? `<path d="M47 29q13-17 26 0Z" fill="#e74b4b" stroke="#7e2a20"/><circle cx="73" cy="29" r="4" fill="#fff"/>` : "";
+  const accessory = merged.accessory === "crown" ? `<path data-layer="accessory" d="m48 30 4-10 8 7 8-7 4 10Z" fill="#f4c531" stroke="#7e5520"/>` : merged.accessory === "sprout" ? `<path data-layer="accessory" d="M60 30q-2-15-10-15M58 20q8-8 12-2" stroke="#55a85b" stroke-width="4" fill="none"/>` : merged.accessory === "monocle" ? `<circle data-layer="accessory" cx="73" cy="49" r="8" fill="none" stroke="#f4c531" stroke-width="2"/>` : merged.accessory === "patch" ? `<path data-layer="accessory" d="M51 58h18v11H51Z" fill="#f4c531" stroke="#7e5520"/>` : merged.accessory === "pumpkin" ? `<g data-layer="accessory"><circle cx="60" cy="29" r="9" fill="#f28c28" stroke="#7e5520"/><path d="M60 20v-4" stroke="#55a85b" stroke-width="3"/></g>` : merged.accessory === "party" ? `<path data-layer="accessory" d="m52 29 8-13 8 13Z" fill="#72c7ff" stroke="#245a82"/>` : merged.accessory === "barnacle" ? `<circle data-layer="accessory" cx="33" cy="42" r="6" fill="#d7c08a" stroke="#7e5520"/>` : merged.accessory === "santa" ? `<g data-layer="accessory"><path d="M47 29q13-17 26 0Z" fill="#e74b4b" stroke="#7e2a20"/><circle cx="73" cy="29" r="4" fill="#fff"/></g>` : "";
   // The Lobsterdex logo uses a small left shoulder claw; its tail fan is
   // intentionally omitted from the retro identity rather than becoming two
   // feet-like blobs beneath the body.
-  const tail = merged.tailFan && !retro ? `<g fill="${claw}"><ellipse cx="16" cy="84" rx="11" ry="7" transform="rotate(-32 16 84)"/><ellipse cx="104" cy="84" rx="11" ry="7" transform="rotate(32 104 84)"/></g>` : "";
-  const freckles = merged.freckles ? `<g fill="#7e2a20"><circle cx="38" cy="59" r="2"/><circle cx="82" cy="59" r="2"/><circle cx="34" cy="66" r="2"/><circle cx="86" cy="66" r="2"/></g>` : "";
+  const tail = merged.tailFan && !retro ? `<g data-layer="tail" fill="${claw}"><ellipse cx="16" cy="84" rx="11" ry="7" transform="rotate(-32 16 84)"/><ellipse cx="104" cy="84" rx="11" ry="7" transform="rotate(32 104 84)"/></g>` : "";
+  const freckles = merged.freckles ? `<g data-layer="freckles" fill="#7e2a20"><circle cx="38" cy="59" r="2"/><circle cx="82" cy="59" r="2"/><circle cx="34" cy="66" r="2"/><circle cx="86" cy="66" r="2"/></g>` : "";
   const eyes = retro
-    ? `<g stroke="#0a1014" stroke-linecap="round" fill="none"><path d="M37 24L51 28" stroke-width="3.5"/><path d="M69 28L83 24" stroke-width="3.5"/></g><circle cx="45" cy="32" r="5.5" fill="#0a1014"/><circle cx="75" cy="32" r="5.5" fill="#0a1014"/><circle cx="46.5" cy="30.5" r="2.2" fill="#00e5cc"/><circle cx="76.5" cy="30.5" r="2.2" fill="#00e5cc"/>`
+    ? `<g data-layer="eyes" stroke="#0a1014" stroke-linecap="round" fill="none"><path d="M37 24L51 28" stroke-width="3.5"/><path d="M69 28L83 24" stroke-width="3.5"/></g><circle data-layer="eyes" cx="45" cy="32" r="5.5" fill="#0a1014"/><circle data-layer="eyes" cx="75" cy="32" r="5.5" fill="#0a1014"/><circle data-layer="eyes" cx="46.5" cy="30.5" r="2.2" fill="#00e5cc"/><circle data-layer="eyes" cx="76.5" cy="30.5" r="2.2" fill="#00e5cc"/>`
     : merged.personality === "sleepy"
-      ? `<path d="M39 33Q45 28 51 33M69 33Q75 28 81 33" stroke="#0a1014" stroke-width="3" fill="none"/>`
-      : `<circle cx="45" cy="32" r="5.5" fill="#0a1014"/><circle cx="75" cy="32" r="5.5" fill="#0a1014"/><circle cx="46.5" cy="30.5" r="2.2" fill="#00e5cc"/><circle cx="76.5" cy="30.5" r="2.2" fill="#00e5cc"/>`;
+      ? `<path data-layer="eyes" d="M39 33Q45 28 51 33M69 33Q75 28 81 33" stroke="#0a1014" stroke-width="3" fill="none"/>`
+      : `<circle data-layer="eyes" cx="45" cy="32" r="5.5" fill="#0a1014"/><circle data-layer="eyes" cx="75" cy="32" r="5.5" fill="#0a1014"/><circle data-layer="eyes" cx="46.5" cy="30.5" r="2.2" fill="#00e5cc"/><circle data-layer="eyes" cx="76.5" cy="30.5" r="2.2" fill="#00e5cc"/>`;
   const clawWidth = merged.clawSize === "dainty" ? 3 : merged.clawSize === "mighty" ? 6 : 4;
   const mouth = merged.personality === "showoff" ? "M47 75q13 12 26 0" : merged.personality === "zoomy" ? "M50 76q10 4 20 0" : "M49 76q11 8 22 0";
-  const standardClaws = `<g class="lob-claw lob-claw--l"><path d="M20 42C5 37 0 47 5 57C10 67 20 62 25 52C28 45 25 42 20 42Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g><g class="lob-claw lob-claw--r"><path d="M100 42C115 37 120 47 115 57C110 67 100 62 95 52C92 45 95 42 100 42Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g>`;
-  const retroLeftClaw = `<g class="lob-claw lob-claw--l"><path d="M24 57C10 51 5 58 10 67C15 75 24 71 29 63C31 59 29 57 24 57Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g>`;
-  const megaClaw = `<g class="lob-claw lob-claw--r"><path d="M95 55C112 53 119 39 116 25C113 11 99 5 91 12C88 15 87 19 88 23C83 27 83 36 88 43C91 49 93 52 95 55Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><path d="M92 14C97 22 99 31 95 41" stroke="${flavor === "goldenretro" ? "#b8860b" : "#b8151b"}" stroke-width="3" stroke-linecap="round" fill="none"/></g>`;
-  const body = `<path class="lob-standard-dome" d="M60 8C32 8 16 32 16 52C16 72 30 90 44 95L44 104L54 104L54 96C58 97.5 62 97.5 66 96L66 104L76 104L76 95C90 90 104 72 104 52C104 32 88 8 60 8Z" fill="${shell}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>`;
-  const highlight = flavor === "goldenretro" ? `<path d="M31 27Q48 11 68 14" stroke="#fff3a6" stroke-width="4" stroke-linecap="round" opacity=".7" fill="none"/><path d="M42 67Q60 79 78 67" stroke="#f8d96b" stroke-width="3" opacity=".6" fill="none"/>` : `<ellipse cx="48" cy="28" rx="20" ry="11" fill="#ffffff" opacity=".1"/>`;
-  const retroFace = retro ? `<path d="M49 45Q59 51 69 45L72 42" stroke="#0a1014" stroke-width="3" stroke-linecap="round" fill="none"/>` : `<path d="${mouth}" stroke="#7e2a20" stroke-width="3" fill="none"/>`;
+  const standardClaws = `<g data-layer="claws" class="lob-claw lob-claw--l"><path d="M20 42C5 37 0 47 5 57C10 67 20 62 25 52C28 45 25 42 20 42Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g><g data-layer="claws" class="lob-claw lob-claw--r"><path d="M100 42C115 37 120 47 115 57C110 67 100 62 95 52C92 45 95 42 100 42Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g>`;
+  const retroLeftClaw = `<g data-layer="claws" class="lob-claw lob-claw--l"><path d="M24 57C10 51 5 58 10 67C15 75 24 71 29 63C31 59 29 57 24 57Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></g>`;
+  const megaClaw = `<g data-layer="claws" class="lob-claw lob-claw--r"><path d="M95 55C112 53 119 39 116 25C113 11 99 5 91 12C88 15 87 19 88 23C83 27 83 36 88 43C91 49 93 52 95 55Z" fill="${claw}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><path d="M92 14C97 22 99 31 95 41" stroke="${flavor === "goldenretro" ? "#b8860b" : "#b8151b"}" stroke-width="3" stroke-linecap="round" fill="none"/></g>`;
+  const body = `<path data-layer="body" class="lob-standard-dome" d="M60 8C32 8 16 32 16 52C16 72 30 90 44 95L44 104L54 104L54 96C58 97.5 62 97.5 66 96L66 104L76 104L76 95C90 90 104 72 104 52C104 32 88 8 60 8Z" fill="${shell}" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>`;
+  const specialGeometry = flavor === "split"
+    ? `<path data-layer="split" d="M60 8C88 8 104 32 104 52C104 72 90 90 76 95L76 104L66 104L66 96C64 96.8 62 97.1 60 97.1L60 8Z" fill="${claw}" opacity=".72"/>`
+    : flavor === "bee"
+      ? `<g data-layer="stripes" fill="none" stroke="#2b2b23" stroke-width="5"><path d="M28 39H92"/><path d="M23 54H97"/><path d="M27 69H93"/></g>`
+      : "";
+  const highlight = flavor === "goldenretro" ? `<g data-layer="highlight"><path d="M31 27Q48 11 68 14" stroke="#fff3a6" stroke-width="4" stroke-linecap="round" opacity=".7" fill="none"/><path d="M42 67Q60 79 78 67" stroke="#f8d96b" stroke-width="3" opacity=".6" fill="none"/></g>` : `<ellipse data-layer="highlight" cx="48" cy="28" rx="20" ry="11" fill="#ffffff" opacity=".1"/>`;
+  const retroFace = retro ? `<path data-layer="face" d="M49 45Q59 51 69 45L72 42" stroke="#0a1014" stroke-width="3" stroke-linecap="round" fill="none"/>` : `<path data-layer="face" d="${mouth}" stroke="#7e2a20" stroke-width="3" fill="none"/>`;
+  // Rubberduck is a distinct Lobsterdex identity, not just a yellow shell:
+  // its bill and pale belly are palette-owned overlays on top of the body.
+  const paletteOverlay = flavor === "rubberduck"
+    ? `<g data-layer="rubberduck"><ellipse cx="60" cy="71" rx="21" ry="14" fill="#fff" opacity=".5"/><rect x="47" y="41" width="26" height="8" rx="4" fill="#ff9a2e"/><rect x="50" y="47" width="20" height="5" rx="2.5" fill="#e98322"/></g>`
+    : "";
   // Keep the built-in source free of blur filters. The native overlay may
   // render its WebView at a different backing scale; a filtered SVG gets
   // cached as a bitmap and then enlarged, producing a fuzzy colored fringe.
   // Give the SVG a large intrinsic surface as well as a viewBox. The
   // geometry remains vector and the CSS scales it down to the pet box; this
   // avoids handing WebKit a tiny intrinsic image that it may cache at 1x.
-  return `<svg width="480" height="420" viewBox="0 0 120 105" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" xmlns="http://www.w3.org/2000/svg"><g transform="translate(60 0) scale(${scale}) translate(-60 0)"><g stroke="${claw}" stroke-width="${clawWidth}" stroke-linecap="round" fill="none"><path d="${antennae}"/>${retro ? "" : "<path d=\"M20 42L5 37M100 42l15-5\"/>"}</g>${retro ? retroLeftClaw + megaClaw : standardClaws}${body}${highlight}${eyes}${retroFace}${freckles}${accessory}</g></svg>`;
+  return `<svg width="480" height="420" viewBox="0 0 120 105" preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" xmlns="http://www.w3.org/2000/svg"><g transform="translate(60 0) scale(${scale}) translate(-60 0)"><g data-layer="antennae" stroke="${claw}" stroke-width="${clawWidth}" stroke-linecap="round" fill="none"><path d="${antennae}"/>${retro ? "" : "<path d=\"M20 42L5 37M100 42l15-5\"/>"}</g>${retro ? retroLeftClaw + megaClaw : standardClaws}${tail}${body}${specialGeometry}${paletteOverlay}${highlight}${eyes}${retroFace}${freckles}${accessory}</g></svg>`;
 }
 
 // These compact SVGs are adapted from OpenClaw's lobster-pet sprite system.

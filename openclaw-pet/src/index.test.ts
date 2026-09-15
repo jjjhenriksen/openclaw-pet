@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ANIMATIONS, createPetController, validateAssets } from "./pet-controller.js";
-import { creatureSvg } from "./creatures.js";
+import { creatureSvg, LOBSTER_FLAVORS } from "./creatures.js";
 
 describe("pet animation contract", () => {
   it("preserves the fixed Codex-compatible atlas layout", () => {
@@ -20,6 +20,69 @@ describe("pet animation contract", () => {
     expect(blue).toContain("stroke-width=\"6\"");
     expect(blue).toContain("#f4c531");
     expect(blue).not.toContain("M45 84q15 14");
+  });
+
+  it("retains the configured tail fan layer", () => {
+    const withTail = creatureSvg("lobster", { flavor: "rubberduck", tailFan: true });
+    const withoutTail = creatureSvg("lobster", { flavor: "rubberduck", tailFan: false });
+    expect(withTail).toContain('ellipse cx="16" cy="84"');
+    expect(withTail).toContain('ellipse cx="104" cy="84"');
+    expect(withoutTail).not.toContain('ellipse cx="16" cy="84"');
+  });
+
+  it("renders rubberduck-specific bill and belly layers", () => {
+    const rubberduck = creatureSvg("lobster", { flavor: "rubberduck" });
+    const crimson = creatureSvg("lobster", { flavor: "crimson" });
+    expect(rubberduck).toContain('rect x="47" y="41"');
+    expect(rubberduck).toContain('ellipse cx="60" cy="71"');
+    expect(crimson).not.toContain('rect x="47" y="41"');
+  });
+
+  it.each(LOBSTER_FLAVORS)("renders the complete %s Lobsterdex palette", (flavor) => {
+    const svg = creatureSvg("lobster", { flavor });
+    expect(svg).toMatch(/^<svg width="480" height="420" viewBox="0 0 120 105"/);
+    expect(svg).toContain('class="lob-standard-dome"');
+    expect(svg).toContain('class="lob-claw lob-claw--l"');
+    expect(svg).toContain('class="lob-claw lob-claw--r"');
+    expect(svg).toContain('xmlns="http://www.w3.org/2000/svg"');
+    expect(svg).toMatch(/<\/g><\/svg>$/);
+  });
+
+  it.each(LOBSTER_FLAVORS)("retains the shared layer stack for %s", (flavor) => {
+    const svg = creatureSvg("lobster", { flavor });
+    const layers = [...svg.matchAll(/data-layer="([^"]+)"/g)].map((match) => match[1]);
+    expect(layers).toEqual(expect.arrayContaining(["antennae", "claws", "body", "highlight", "eyes", "face"]));
+    expect(svg.match(/data-layer="claws"/g)).toHaveLength(2);
+    expect(layers.indexOf("body")).toBeGreaterThan(layers.indexOf("antennae"));
+    expect(layers.indexOf("highlight")).toBeGreaterThan(layers.indexOf("body"));
+    expect(layers.indexOf("eyes")).toBeGreaterThan(layers.indexOf("highlight"));
+    expect(layers.indexOf("face")).toBeGreaterThan(layers.indexOf("eyes"));
+    if (flavor === "retro" || flavor === "goldenretro") {
+      expect(svg).toContain('data-layer="claws" class="lob-claw lob-claw--r"');
+    }
+  });
+
+  it("renders every canonical special-layer family", () => {
+    expect(creatureSvg("lobster", { flavor: "split" })).toContain('data-layer="split"');
+    expect(creatureSvg("lobster", { flavor: "bee" })).toContain('data-layer="stripes"');
+    expect(creatureSvg("lobster", { flavor: "rubberduck" })).toContain('data-layer="rubberduck"');
+    expect(creatureSvg("lobster", { flavor: "goldenretro" })).toContain('data-layer="highlight"');
+  });
+
+  it("keeps optional layers opt-in and correctly ordered", () => {
+    const withAll = creatureSvg("lobster", { flavor: "rubberduck", tailFan: true, freckles: true, accessory: "crown" });
+    const withoutOptional = creatureSvg("lobster", { flavor: "crimson", tailFan: false, freckles: false, accessory: "none" });
+    expect(withAll).toContain('ellipse cx="16" cy="84"');
+    expect(withAll).toContain('circle cx="38" cy="59"');
+    expect(withAll).toContain('fill="#f4c531"');
+    expect(withAll.indexOf('ellipse cx="16" cy="84"')).toBeLessThan(withAll.indexOf('data-layer="body"'));
+    expect(withoutOptional).not.toContain('ellipse cx="16" cy="84"');
+    expect(withoutOptional).not.toContain('circle cx="38" cy="59"');
+  });
+
+  it("keeps the Lobsterdex palette inventory at 42 entries", () => {
+    expect(LOBSTER_FLAVORS).toHaveLength(42);
+    expect(new Set(LOBSTER_FLAVORS).size).toBe(42);
   });
 
   it("keeps overlapping runs active until all runs complete", () => {
