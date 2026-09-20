@@ -7,6 +7,8 @@
     "build": "tsc -p tsconfig.json && npm run build:overlay",
     "build:overlay": "node ./scripts/build-overlay.mjs",
     "test": "vitest run --config ./vitest.config.ts",
+    "test:visual": "npm run build --silent && node ./scripts/render-lobster-fixtures.mjs && node ./scripts/render-lobster-fixtures.mjs --check",
+    "test:visual:upstream": "npm run build --silent && node ./scripts/render-lobster-fixtures.mjs && node ./scripts/compare-upstream-lobsters.mjs",
     "pack:check": "node ./scripts/check-package.mjs",
     "validate": "npm run build && npm test && npm run pack:check",
     "smoke:macos": "node ./scripts/smoke-macos.mjs"

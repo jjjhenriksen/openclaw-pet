@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { ANIMATIONS, createPetController, validateAssets } from "./pet-controller.js";
 import { creatureSvg, LOBSTER_FLAVORS } from "./creatures.js";
 
+const REPLACEMENTS = new Set(["flatpack", "loading", "actual", "balloon", "ascii", "portal", "pixel"]);
+
 describe("pet animation contract", () => {
   it("preserves the fixed Codex-compatible atlas layout", () => {
     expect(Object.keys(ANIMATIONS)).toHaveLength(9);
@@ -13,109 +15,72 @@ describe("pet animation contract", () => {
     expect(validateAssets()).toMatchObject({ valid: false, lastError: "assetDir is required" });
   });
 
-  it("renders lobster flavor and trait settings into the local SVG", () => {
-    const blue = creatureSvg("lobster", { flavor: "blue", personality: "sleepy", build: "slender", clawSize: "mighty", accessory: "crown", tailFan: false, freckles: true });
-    expect(blue).toContain("#4a7dfc");
-    expect(blue).toContain('stroke="#fff"');
-    expect(blue).toContain("stroke-width=\"6\"");
-    expect(blue).toContain("#f4c531");
-    expect(blue).not.toContain("M45 84q15 14");
+  it("uses the canonical OpenClaw SVG renderer contract", () => {
+    const svg = creatureSvg("lobster", { flavor: "blue" });
+    expect(svg).toMatch(/^<svg width="480" height="420" class="lobster-pet lobster-pet__svg lobster-pet--palette-blue"/);
+    expect(svg).toContain('viewBox="0 0 120 105"');
+    expect(svg).toContain('class="lob-standard-dome"');
+    expect(svg).toContain('class="lob-claw lob-claw--l"');
+    expect(svg).toContain('class="lob-claw lob-claw--r"');
+    expect(svg).toContain("lobster-pet--palette-ghost");
+    expect(svg).toContain("stroke-width=\"4\"");
   });
 
-  it("retains the configured tail fan layer", () => {
+  it("retains the configured tail fan layer behind the body", () => {
     const withTail = creatureSvg("lobster", { flavor: "rubberduck", tailFan: true });
     const withoutTail = creatureSvg("lobster", { flavor: "rubberduck", tailFan: false });
-    expect(withTail).toContain('ellipse cx="16" cy="84"');
-    expect(withTail).toContain('ellipse cx="104" cy="84"');
-    expect(withoutTail).not.toContain('ellipse cx="16" cy="84"');
+    expect(withTail).toContain('class="lob-tail"');
+    expect(withTail.indexOf('class="lob-tail"')).toBeLessThan(withTail.indexOf('class="lob-standard-dome"'));
+    expect(withoutTail).not.toContain('class="lob-tail"');
   });
 
-  it("renders rubberduck-specific bill and belly layers", () => {
+  it("keeps the source-specific rubberduck overlay", () => {
     const rubberduck = creatureSvg("lobster", { flavor: "rubberduck" });
     const crimson = creatureSvg("lobster", { flavor: "crimson" });
-    expect(rubberduck).toContain('rect x="47" y="41"');
+    expect(rubberduck).toContain('fill="#ff9a2e"');
     expect(rubberduck).toContain('ellipse cx="60" cy="71"');
-    expect(crimson).not.toContain('rect x="47" y="41"');
+    expect(crimson).not.toContain('ellipse cx="60" cy="71"');
   });
 
-  it.each(LOBSTER_FLAVORS)("renders the complete %s Lobsterdex palette", (flavor) => {
+  it.each(LOBSTER_FLAVORS)("renders canonical %s geometry", (flavor) => {
     const svg = creatureSvg("lobster", { flavor });
-    expect(svg).toMatch(/^<svg width="480" height="420" viewBox="0 0 120 105"/);
+    expect(svg).toContain(`lobster-pet--palette-${flavor}`);
     expect(svg).toContain('xmlns="http://www.w3.org/2000/svg"');
-    expect(svg).toMatch(/<\/g><\/svg>$/);
-    const replacements = ["flatpack", "loading", "actual", "balloon", "ascii", "portal", "pixel"];
-    if (replacements.includes(flavor)) {
-      expect(svg).toContain(`data-layer="${flavor}"`);
+    if (REPLACEMENTS.has(flavor)) {
+      const geometryClass = flavor === "pixel" ? "lob-pixel-frame" : flavor === "loading" ? "lob-skeleton" : `lob-${flavor}`;
+      expect(svg).toContain(`class="${geometryClass}"`);
     } else {
       expect(svg).toContain('class="lob-standard-dome"');
-      expect(svg).toContain('class="lob-claw lob-claw--l"');
-      expect(svg).toContain('class="lob-claw lob-claw--r"');
     }
   });
 
-  it.each(LOBSTER_FLAVORS)("retains the shared layer stack for %s", (flavor) => {
-    const svg = creatureSvg("lobster", { flavor });
-    if (["flatpack", "loading", "actual", "balloon", "ascii", "portal", "pixel"].includes(flavor)) return;
-    const layers = [...svg.matchAll(/data-layer="([^"]+)"/g)].map((match) => match[1]);
-    expect(layers).toEqual(expect.arrayContaining(["antennae", "claws", "body", "highlight", "eyes", "face"]));
-    expect(svg.match(/data-layer="claws"/g)).toHaveLength(2);
-    expect(layers.indexOf("body")).toBeGreaterThan(layers.indexOf("antennae"));
-    expect(layers.indexOf("highlight")).toBeGreaterThan(layers.indexOf("body"));
-    expect(layers.indexOf("eyes")).toBeGreaterThan(layers.indexOf("highlight"));
-    expect(layers.indexOf("face")).toBeGreaterThan(layers.indexOf("eyes"));
-    if (flavor === "retro" || flavor === "goldenretro") {
-      expect(svg).toContain('data-layer="claws" class="lob-claw lob-claw--r"');
-    }
-  });
-
-  it("renders every canonical special-layer family", () => {
-    const expectedLayers: Record<string, string> = {
-      lumen: "lumen", magma: "magma", oilslick: "oilslick", aurora: "aurora", nebula: "nebula", banana: "banana",
-      bee: "bee", rubberduck: "rubberduck", watermelon: "watermelon", clawtron: "clawtron", selene: "selene", geode: "split",
-      glass: "glass", sourdough: "sourdough", zombie: "zombie", plush: "plush", disco: "disco", blueprint: "blueprint",
-      phosphor: "phosphor", heisenbug: "heisenbug", notexture: "notexture", eclipse: "eclipse", chimera: "chimera", tinfoil: "tinfoil",
-      ghost: "ghost", cottoncandy: "cottoncandy", cryptid: "cryptid", invisible: "invisible",
-      split: "split", flatpack: "flatpack", loading: "loading", actual: "actual", balloon: "balloon", ascii: "ascii", portal: "portal", pixel: "pixel",
+  it("covers the complete canonical special-layer contract", () => {
+    const signatures: Record<string, string> = {
+      lumen: "lob-lumen", magma: "lob-magma", oilslick: "lob-oilsheen", aurora: "lob-aurora",
+      nebula: "lob-nebula-stars", banana: "lob-standard-dome", bee: "lob-bee-wings", rubberduck: 'fill="#ff9a2e"',
+      watermelon: "lob-watermelon", clawtron: "lob-mecha", selene: "lob-selene-moon", geode: "lob-geode-facets",
+      glass: "lob-glass-glints", sourdough: "lob-standard-dome", zombie: "lob-standard-dome", plush: "lob-plush-button",
+      disco: "lob-disco", blueprint: "lob-blueprint", phosphor: "lob-scanlines", heisenbug: "lob-glitch-ghosts",
+      notexture: "lob-notexture", eclipse: "lob-eclipse", chimera: "lob-chimera", tinfoil: "lob-tinfoil",
+      ghost: "lobster-pet--palette-ghost", cottoncandy: "lobster-pet--palette-cottoncandy",
+      cryptid: "lob-cryptid-frame", invisible: "lobster-pet--palette-invisible", split: "lob-split-half",
     };
-    for (const [flavor, layer] of Object.entries(expectedLayers)) {
-      expect(creatureSvg("lobster", { flavor: flavor as typeof LOBSTER_FLAVORS[number] })).toContain(`data-layer="${layer}"`);
+    for (const [flavor, signature] of Object.entries(signatures)) {
+      expect(creatureSvg("lobster", { flavor: flavor as (typeof LOBSTER_FLAVORS)[number] }), flavor).toContain(signature);
     }
   });
 
-  it("keeps optional layers opt-in and correctly ordered", () => {
-    const withAll = creatureSvg("lobster", { flavor: "rubberduck", tailFan: true, freckles: true, accessory: "crown" });
-    const withoutOptional = creatureSvg("lobster", { flavor: "crimson", tailFan: false, freckles: false, accessory: "none" });
-    expect(withAll).toContain('ellipse cx="16" cy="84"');
-    expect(withAll).toContain('circle cx="38" cy="59"');
-    expect(withAll).toContain('fill="#f4c531"');
-    expect(withAll.indexOf('ellipse cx="16" cy="84"')).toBeLessThan(withAll.indexOf('data-layer="body"'));
-    expect(withoutOptional).not.toContain('ellipse cx="16" cy="84"');
-    expect(withoutOptional).not.toContain('circle cx="38" cy="59"');
+  it("keeps canonical layer order and optional layers", () => {
+    const svg = creatureSvg("lobster", { flavor: "crimson", tailFan: true, accessory: "crown" });
+    expect(svg.indexOf('class="lob-tail"')).toBeLessThan(svg.indexOf('class="lob-standard-dome"'));
+    expect(svg.indexOf('class="lob-standard-dome"')).toBeLessThan(svg.indexOf('class="lob-eye-open"'));
+    expect(svg).toContain('fill="#f6c945"');
+    expect(creatureSvg("lobster", { flavor: "crimson", tailFan: false, accessory: "none" })).not.toContain('class="lob-tail"');
   });
 
   it("keeps the Lobsterdex palette inventory at 42 entries", () => {
     expect(LOBSTER_FLAVORS).toHaveLength(42);
     expect(new Set(LOBSTER_FLAVORS).size).toBe(42);
-  });
-
-  it("does not collapse canonical variants into an unmarked shared render", () => {
-    const canonicalSignatures: Record<string, string> = {
-      crimson: "#ff4f40", blue: "#4a7dfc", gold: "#f4b840", mood: "#7f77dd",
-      lumen: 'data-layer="lumen"', magma: 'data-layer="magma"', oilslick: 'data-layer="oilslick"', aurora: 'data-layer="aurora"',
-      nebula: 'data-layer="nebula"', banana: 'data-layer="banana"', bee: 'data-layer="bee"', rubberduck: 'data-layer="rubberduck"',
-      watermelon: 'data-layer="watermelon"', clawtron: 'data-layer="clawtron"', selene: 'data-layer="selene"', geode: 'data-layer="geode"',
-      ghost: 'data-layer="ghost"', glass: 'data-layer="glass"', split: 'data-layer="split"', sourdough: 'data-layer="sourdough"',
-      zombie: 'data-layer="zombie"', plush: 'data-layer="plush"', balloon: 'data-layer="balloon"', cryptid: 'data-layer="cryptid"',
-      flatpack: 'data-layer="flatpack"', tinfoil: 'data-layer="tinfoil"', actual: 'data-layer="actual"', cottoncandy: 'data-layer="cottoncandy"',
-      disco: 'data-layer="disco"', chimera: 'data-layer="chimera"', pixel: 'data-layer="pixel"', blueprint: 'data-layer="blueprint"',
-      phosphor: 'data-layer="phosphor"', ascii: 'data-layer="ascii"', portal: 'data-layer="portal"', notexture: 'data-layer="notexture"',
-      loading: 'data-layer="loading"', eclipse: 'data-layer="eclipse"', heisenbug: 'data-layer="heisenbug"', invisible: 'data-layer="invisible"',
-      retro: 'data-layer="claws" class="lob-claw lob-claw--r"', goldenretro: 'data-layer="claws" class="lob-claw lob-claw--r"',
-    };
-    expect(Object.keys(canonicalSignatures)).toHaveLength(42);
-    for (const flavor of LOBSTER_FLAVORS) {
-      expect(creatureSvg("lobster", { flavor }), flavor).toContain(canonicalSignatures[flavor]);
-    }
   });
 
   it("keeps overlapping runs active until all runs complete", () => {
