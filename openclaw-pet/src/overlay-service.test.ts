@@ -536,6 +536,7 @@ describe("overlay lifecycle", () => {
     expect(body).toContain("setInterval(checkWatchdog,250)");
     expect(body).toContain("openclaw-pet://watchdog-expired");
     expect(body).toContain("renderActivity(state.sources)");
+    expect(body).toContain("showSourceLabel?source.label+\" · \":\"\"");
     expect(body).toContain("openclaw-pet://resize?size=");
     expect(body).toContain("&offsetX=");
     expect(body).toContain('fetch("/creatures/"+encodeURIComponent(creature)+".svg?v=lobsterdex-20260913"');

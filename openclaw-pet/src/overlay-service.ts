@@ -26,6 +26,7 @@ export type StartOverlayParams = {
   size: number;
   corner: string;
   showStatus?: boolean;
+  showSourceLabel?: boolean;
   clickThrough?: boolean;
   windowOffset?: { x: number; y: number };
   getSnapshot: () => DisplaySnapshot;
@@ -197,7 +198,7 @@ function effectiveWindowOffset(params: Pick<StartOverlayParams, "assets" | "getW
   return params.getWindowOffset?.(sourceId) ?? params.windowOffset ?? { x: 0, y: 0 };
 }
 
-function overlayHtml(size: number, sourceCount: number, showStatus: boolean): string {
+function overlayHtml(size: number, sourceCount: number, showStatus: boolean, showSourceLabel: boolean): string {
   const animations = JSON.stringify(ANIMATIONS).replaceAll("<", "\\u003c");
   return `<!doctype html>
 <html>
@@ -267,7 +268,9 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
       items.sort((a,b)=>{const rankA=a.run?stateRank(a.run):4,rankB=b.run?stateRank(b.run):4;return rankA-rankB||(b.run?.updatedAt||0)-(a.run?.updatedAt||0)});
       const visible=items.slice(0,8);
       const attention=visible.filter(item=>item.run?.attention).length;
-      document.querySelector("#summary").textContent=attention?attention+" waiting on you":"Watching "+visible.length+" active session"+(visible.length===1?"":"s");
+      const active=visible.filter(item=>item.run&&["starting","thinking","tool","finishing"].includes(item.run.state)).length;
+      const unread=visible.filter(item=>item.run?.unread&&!item.run?.attention).length;
+      document.querySelector("#summary").textContent=attention?attention+" waiting on you":active?"Watching "+active+" active session"+(active===1?"":"s"):unread?unread+" ready to review":"No active sessions";
       events.replaceChildren(...(visible.length?visible.map(({source,run})=>{
         const row=document.createElement("li");
         row.className="item "+(run?.attention?"attention ":toneFor(source));
@@ -277,7 +280,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
         const status=document.createElement("span"); status.className="status";
         if(!run){name.textContent=source.label;status.textContent="Source unavailable";copy.append(name,status);row.append(dot,copy);return row;}
         const session=run.session?.displayName||run.session?.kind||"Session";
-        name.textContent=source.label+" · "+session+(run.session?.agentId?" · "+run.session.agentId:"");
+        name.textContent=(showSourceLabel?source.label+" · ":"")+session+(run.session?.agentId?" · "+run.session.agentId:"");
         status.textContent=(run.toolName?run.toolName+" · ":"")+stateLabel(run);
         copy.append(name,status);
         const ack=document.createElement("button"); ack.className="ack"; ack.type="button"; ack.textContent=run.unread?"Mark read":""; ack.setAttribute("aria-label","Mark "+session+" read");
@@ -399,7 +402,7 @@ function requestHandler(params: StartOverlayParams): RequestListener {
         "content-security-policy": "default-src 'none'; connect-src 'self'; img-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'",
         "cache-control": "no-store",
       });
-      res.end(overlayHtml(effectiveOverlaySize(params), params.assets.length, params.showStatus ?? true));
+      res.end(overlayHtml(effectiveOverlaySize(params), params.assets.length, params.showStatus ?? true, params.showSourceLabel ?? false));
       return;
     }
     if (path === "/state") {
@@ -747,6 +750,7 @@ export function createOverlayManager(createService: OverlayServiceFactory = crea
       ? { ...params, size, getSize, getWindowOffset: params.getWindowOffset ?? (() => params.windowOffset ?? { x: 0, y: 0 }) }
       : {
         ...params,
+        showSourceLabel: params.assets.length > 1,
         assets: [asset],
         size,
         windowOffset: offsetForSource(index, sizes, params.corner, params.showStatus ?? true),
