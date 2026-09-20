@@ -106,7 +106,16 @@ export function createPetController(config: PetConfig = {}) {
     initialize: () => (validation = validateAssets(config.assetDir, config.creature)),
     snapshot: (): PetSnapshot => ({ ...validation, animation, changedAt, activeRuns, activityCount, lastEvent, activityLabel, activity, message: validation.valid ? `Pet is ${animation}; last event: ${lastEvent}.` : validation.message }),
     statusText: () => { const s = validation.valid ? { ...validation, animation, activeRuns, activityCount, lastEvent } : validation; return s.valid ? `Pet: ${animation}; activity: ${activityLabel}; last event: ${lastEvent}; activity count: ${activityCount}.` : s.message; },
-    reset: () => { activeRuns = 0; clearTimeout(idleTimer); set("idle", "manual-reset", "Ready"); record("Reset to ready", "neutral"); return { ...validation, animation, changedAt, activeRuns, activityCount, lastEvent, activityLabel, activity, message: "Pet reset to idle." }; },
+    updateRunActivity,
+    acknowledgeRun: (id: string) => {
+      for (const [runId, run] of runs) {
+        if (run.id !== id) continue;
+        runs.set(runId, { ...run, attention: false, unread: false, updatedAt: Date.now() });
+        return true;
+      }
+      return false;
+    },
+    reset: () => { activeRuns = 0; clearTimeout(idleTimer); set("idle", "manual-reset", "Ready"); record("Reset to ready", "neutral"); return { ...validation, animation, changedAt, activeRuns, activityCount, lastEvent, activityLabel, activity, runs: [...runs.values()], message: "Pet reset to idle." }; },
     modelStarted: (label = "Thinking") => { activityCount += 1; activeRuns += 1; clearTimeout(idleTimer); set("review", "model-started", label); record(label, "active"); },
     toolStarted: (toolName?: string, displayLabel?: string) => { activityCount += 1; clearTimeout(idleTimer); const label = displayLabel ?? (toolName ? `Running ${toolName}` : "Running tool"); set("running", "tool-started", label); record(label, "active"); },
     progress: (label: string) => { activityCount += 1; clearTimeout(idleTimer); set("review", "progress", label); record(label, "active"); },

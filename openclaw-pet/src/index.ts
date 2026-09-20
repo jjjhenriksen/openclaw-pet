@@ -52,6 +52,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
         showStatus: config?.overlay?.showStatus ?? true,
         clickThrough: config?.overlay?.clickThrough ?? false,
         getSnapshot: () => sources.snapshot(),
+        acknowledgeRun: (runId) => pet.acknowledgeRun(runId),
         getSize: getSourceSize,
         logger: api.logger,
       });
