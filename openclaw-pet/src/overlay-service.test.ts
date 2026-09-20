@@ -207,8 +207,8 @@ describe("overlay platform selection", () => {
     expect(normalizeOverlaySize(768)).toBe(768);
     expect(normalizeOverlaySize(95)).toBeUndefined();
     expect(normalizeOverlaySize("224px")).toBeUndefined();
-    expect(calculateOverlayDimensions(224, 3)).toEqual({ width: 672, height: 352 });
-    expect(calculateOverlayDimensions(96, 1)).toEqual({ width: 220, height: 224 });
+    expect(calculateOverlayDimensions(224, 3)).toEqual({ width: 672, height: 444 });
+    expect(calculateOverlayDimensions(96, 1)).toEqual({ width: 320, height: 316 });
     expect(calculateOverlayDimensions(96, 1, false)).toEqual({ width: 96, height: 96 });
     expect(calculateOverlayDimensions(224, 3, false)).toEqual({ width: 672, height: 224 });
   });
@@ -358,7 +358,7 @@ describe("overlay lifecycle", () => {
     };
 
     await manager.start(baseParams);
-    expect(started[1]?.getWindowOffset?.()).toEqual({ x: -248, y: 0 });
+    expect(started[1]?.getWindowOffset?.()).toEqual({ x: -344, y: 0 });
     runtimeSizes.set("local", 320);
     await manager.start(baseParams);
 
@@ -536,6 +536,7 @@ describe("overlay lifecycle", () => {
     expect(body).toContain("setInterval(checkWatchdog,250)");
     expect(body).toContain("openclaw-pet://watchdog-expired");
     expect(body).toContain("renderActivity(state.sources)");
+    expect(body).toContain("showSourceLabel?source.label+\" · \":\"\"");
     expect(body).toContain("openclaw-pet://resize?size=");
     expect(body).toContain("&offsetX=");
     expect(body).toContain('fetch("/creatures/"+encodeURIComponent(creature)+".svg?v=lobsterdex-20260913"');
