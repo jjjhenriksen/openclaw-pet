@@ -44,6 +44,16 @@ describe("plugin command setup and visibility", () => {
     expect((await command.handler({ args: "status" })).text).toContain("overlay tucked away");
     expect((await command.handler({ args: "wake" })).text).toContain("Pet awake");
   });
+
+  it("includes per-source availability in human-readable status", async () => {
+    const registered = registerPlugin({
+      sources: [{ id: "build", label: "Build server", creature: "duck", gateway: { url: "https://example.test/pet" } }],
+      overlay: { enabled: false },
+    });
+    const status = await registered.getCommand().handler({ args: "status" });
+    expect(status.text).toContain("Build server unavailable 160px");
+    expect(status.text).not.toContain("example.test");
+  });
 });
 
 describe("plugin bridge registration", () => {
