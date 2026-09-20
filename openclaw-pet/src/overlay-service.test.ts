@@ -538,6 +538,9 @@ describe("overlay lifecycle", () => {
     expect(body).toContain("setInterval(checkWatchdog,250)");
     expect(body).toContain("openclaw-pet://watchdog-expired");
     expect(body).toContain("renderActivity(state.sources)");
+    expect(body).toContain('role="region" aria-label="OpenClaw pet activity" aria-live="polite" aria-atomic="false"');
+    expect(body).toContain('id="events" aria-label="Recent activity"');
+    expect(body).toContain("button:focus-visible{outline:2px solid #b9c5ff");
     expect(body).toContain("showSourceLabel?source.label+\" · \":\"\"");
     expect(body).toContain("openclaw-pet://resize?size=");
     expect(body).toContain("&offsetX=");
