@@ -39,6 +39,7 @@ function contextLabel(context: SessionContext | undefined, label: string): strin
 export function createPetEventHandler(params: {
   pet: PetEventSink;
   logger: PetEventLogger;
+  rememberRunTarget?: (runId: string, target: { sessionKey: string; agentId?: string }) => void;
   resolveSessionDisplayName?: (sessionKey: string) => Promise<string | undefined>;
   resolveCronJobName?: CronJobNameResolver;
 }): (event: PetAgentEvent) => Promise<void> {
@@ -57,6 +58,7 @@ export function createPetEventHandler(params: {
             : event.stream === "lifecycle" && phase === "start" ? "starting" : "thinking";
     const session = discovered ? { kind: discovered.kind, ...(discovered.label ? { displayName: discovered.label } : {}), ...(discovered.agentId ? { agentId: discovered.agentId } : {}) } : undefined;
     if (event.runId) {
+      if (event.sessionKey) params.rememberRunTarget?.(event.runId, { sessionKey: event.sessionKey, ...(event.agentId ? { agentId: event.agentId } : {}) });
       params.pet.updateRunActivity?.({ runId: event.runId, ...(session ? { session } : {}), state: runState, ...(toolName ? { toolName } : {}), ...(runState === "failed" ? { attention: true, unread: true } : runState === "completed" ? { unread: true } : {}) });
     }
 

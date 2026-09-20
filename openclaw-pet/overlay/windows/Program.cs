@@ -1,6 +1,9 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -98,6 +101,7 @@ internal sealed class OverlayWindow : Window
     private readonly Uri origin;
     private readonly Border? dragSurface;
     private bool petsHidden;
+    private static readonly HttpClient Http = new();
 
     internal OverlayWindow(OverlayArguments options)
     {
@@ -250,6 +254,15 @@ internal sealed class OverlayWindow : Window
                     });
                     return;
                 }
+                if (target.Scheme == "openclaw-pet" && target.Host == "open-run")
+                {
+                    navigation.Cancel = true;
+                    if (TryGetQueryValue(target, "id", out var runId) && System.Text.RegularExpressions.Regex.IsMatch(runId, "^run_[a-f0-9]{20}$"))
+                    {
+                        Dispatcher.BeginInvoke(new Action(() => _ = OpenRunAsync(runId)));
+                    }
+                    return;
+                }
                 if (
                     target.Scheme != origin.Scheme ||
                     target.Host != origin.Host ||
@@ -273,6 +286,40 @@ internal sealed class OverlayWindow : Window
             Console.Error.WriteLine($"WebView2 initialization failed: {error.Message}");
             Application.Current.Shutdown(1);
         }
+    }
+
+    private async Task OpenRunAsync(string runId)
+    {
+        try
+        {
+            var endpoint = new Uri(origin, $"/open-run?id={Uri.EscapeDataString(runId)}");
+            using var response = await Http.GetAsync(endpoint);
+            if (!response.IsSuccessStatusCode) return;
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync());
+            if (!document.RootElement.TryGetProperty("url", out var value)) return;
+            var rawUrl = value.GetString();
+            if (!Uri.TryCreate(rawUrl, UriKind.Absolute, out var target) || target.Scheme is not ("http" or "https")) return;
+            Process.Start(new ProcessStartInfo { FileName = target.AbsoluteUri, UseShellExecute = true });
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine($"OpenClaw Pet could not open session: {error.Message}");
+        }
+    }
+
+    private static bool TryGetQueryValue(Uri target, string name, out string value)
+    {
+        value = "";
+        foreach (var pair in target.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length == 2 && Uri.UnescapeDataString(parts[0]) == name)
+            {
+                value = Uri.UnescapeDataString(parts[1]);
+                return true;
+            }
+        }
+        return false;
     }
 
     private void ApplyRuntimeLayout(int size, int sourceCount, int offsetX, int offsetY)

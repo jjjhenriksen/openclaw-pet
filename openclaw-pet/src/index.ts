@@ -7,6 +7,7 @@ import { createPetController, type PetConfig } from "./pet-controller.js";
 import { normalizeOverlaySize, startOverlay, stopOverlay } from "./overlay-service.js";
 import { BRIDGE_SNAPSHOT_METHOD, SourceCoordinator, type DisplaySourceAsset } from "./source-coordinator.js";
 import { parseSetupArgs, setupHelp, setupPreview } from "./setup-flow.js";
+import { buildLocalSessionUrl } from "./session-url.js";
 
 const plugin: OpenClawPluginDefinition = definePluginEntry({
   id: "openclaw-pet",
@@ -23,6 +24,19 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
     const sourceSizes = new Map<string, number>();
     let overlayStateDir = process.env.TMPDIR ?? "/tmp";
     let tuckedAway = false;
+    const runTargets = new Map<string, { sessionKey: string; agentId?: string }>();
+    const rememberRunTarget = (runId: string, target: { sessionKey: string; agentId?: string }) => {
+      runTargets.set(runId, target);
+      while (runTargets.size > 32) runTargets.delete(runTargets.keys().next().value!);
+    };
+    const controlUiPort = Number((api as unknown as { config?: { gateway?: { port?: unknown } } }).config?.gateway?.port) || 18789;
+    const resolveOpenRun = (opaqueRunId: string): string | undefined => {
+      for (const [runId, target] of runTargets) {
+        if (pet.opaqueIdForRun(runId) !== opaqueRunId) continue;
+        return buildLocalSessionUrl(target.sessionKey, target.agentId, controlUiPort);
+      }
+      return undefined;
+    };
     const getSourceSize = (sourceId?: string): number => {
       if (!sourceId) return overlaySize;
       const source = sources.assets().find((candidate) => candidate.id === sourceId);
@@ -53,6 +67,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
         clickThrough: config?.overlay?.clickThrough ?? false,
         getSnapshot: () => sources.snapshot(),
         acknowledgeRun: (runId) => pet.acknowledgeRun(runId),
+        resolveOpenRun,
         getSize: getSourceSize,
         logger: api.logger,
       });
@@ -146,6 +161,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
       handle: createPetEventHandler({
         pet,
         logger: api.logger,
+        rememberRunTarget,
         resolveSessionDisplayName: createSessionDisplayNameResolver((sessionKey) =>
           api.runtime.gateway.request("sessions.describe", {
             key: sessionKey,

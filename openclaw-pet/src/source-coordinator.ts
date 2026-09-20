@@ -20,6 +20,8 @@ export type DisplaySourceState = {
   id: string;
   label: string;
   available: boolean;
+  /** Whether this source can resolve opaque run ids through this host. */
+  openable?: boolean;
   creature?: CreatureKind;
   lobster?: LobsterSettings;
   state: SanitizedPetState;
@@ -228,8 +230,8 @@ export class SourceCoordinator {
     return {
       sources: this.displaySources.map((source) => {
         const remote = this.remote.get(source.id);
-        if (!remote) return { id: source.id, label: source.label, available: true, state: localState };
-        return { id: source.id, label: source.label, available: remote.available, state: remote.snapshot.state };
+        if (!remote) return { id: source.id, label: source.label, available: true, openable: true, state: localState };
+        return { id: source.id, label: source.label, available: remote.available, openable: false, state: remote.snapshot.state };
       }),
     };
   }

@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 import WebKit
 
 final class DragSurface: NSView {
@@ -11,11 +12,13 @@ final class OverlayNavigationDelegate: NSObject, WKNavigationDelegate {
   private let port: Int
   private let resize: (Int, Int, Int, Int) -> Void
   private let setPetsHidden: (Bool) -> Void
+  private let openRun: (String) -> Void
 
-  init(port: Int, resize: @escaping (Int, Int, Int, Int) -> Void, setPetsHidden: @escaping (Bool) -> Void) {
+  init(port: Int, resize: @escaping (Int, Int, Int, Int) -> Void, setPetsHidden: @escaping (Bool) -> Void, openRun: @escaping (String) -> Void) {
     self.port = port
     self.resize = resize
     self.setPetsHidden = setPetsHidden
+    self.openRun = openRun
   }
 
   func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -44,6 +47,14 @@ final class OverlayNavigationDelegate: NSObject, WKNavigationDelegate {
       decisionHandler(.cancel)
       let hidden = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "hidden" }).flatMap { Bool($0.value ?? "") } ?? false
       setPetsHidden(hidden)
+      return
+    }
+    if url.scheme == "openclaw-pet" && url.host == "open-run" {
+      decisionHandler(.cancel)
+      let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "id" })?.value ?? ""
+      if id.range(of: #"^run_[a-f0-9]{20}$"#, options: .regularExpression) != nil {
+        openRun(id)
+      }
       return
     }
     let isOverlayOrigin = url.scheme == "http" && url.host == "127.0.0.1" && url.port == port
@@ -89,7 +100,19 @@ web.layer?.contentsScale = NSScreen.main?.backingScaleFactor ?? 1.0
 web.autoresizingMask = [.width, .height]
 var dragSurface: DragSurface?
 var petsHidden = false
-let navigationDelegate = OverlayNavigationDelegate(port: port) { nextSize, nextCount, nextOffsetX, nextOffsetY in
+let openRun: (String) -> Void = { id in
+  guard let endpoint = URL(string: "http://127.0.0.1:\(port)/open-run?id=\(id.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? id)") else { return }
+  URLSession.shared.dataTask(with: endpoint) { data, response, _ in
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+          let data,
+          let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let rawUrl = payload["url"] as? String,
+          let url = URL(string: rawUrl),
+          ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { return }
+    DispatchQueue.main.async { NSWorkspace.shared.open(url) }
+  }.resume()
+}
+let navigationDelegate = OverlayNavigationDelegate(port: port, resize: { nextSize, nextCount, nextOffsetX, nextOffsetY in
   let nextDimensions = overlayDimensions(size: nextSize, sourceCount: nextCount)
   let nextWidth = nextDimensions.width
   let nextHeight = nextDimensions.height
@@ -99,12 +122,12 @@ let navigationDelegate = OverlayNavigationDelegate(port: port) { nextSize, nextC
   dragSurface?.frame = petsHidden
     ? NSRect(x: 0, y: CGFloat(nextSize), width: max(1, nextWidth - dragButtonReserve), height: activityHeight)
     : NSRect(x: nextWidth - CGFloat(nextSize * nextCount), y: 0, width: CGFloat(nextSize * nextCount), height: CGFloat(max(1, nextSize - 38)))
-} setPetsHidden: { hidden in
+}, setPetsHidden: { hidden in
   petsHidden = hidden
   dragSurface?.frame = hidden
     ? NSRect(x: 0, y: CGFloat(size), width: max(1, panelWidth - dragButtonReserve), height: activityHeight)
     : NSRect(x: panelWidth - CGFloat(size * sourceCount), y: 0, width: CGFloat(size * sourceCount), height: CGFloat(max(1, size - 38)))
-}
+}, openRun: openRun)
 web.navigationDelegate = navigationDelegate
 web.load(URLRequest(url: URL(string: "http://127.0.0.1:\(port)/")!))
 panel.contentView?.addSubview(web)

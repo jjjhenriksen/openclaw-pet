@@ -147,6 +147,7 @@ export function createPetController(config: PetConfig = {}) {
     snapshot: (): PetSnapshot => ({ ...validation, animation, changedAt, activeRuns, activityCount, lastEvent, activityLabel, activity, runs: [...runs.values()], message: validation.valid ? `Pet is ${animation}; last event: ${lastEvent}.` : validation.message }),
     statusText: () => { const s = validation.valid ? { ...validation, animation, activeRuns, activityCount, lastEvent } : validation; return s.valid ? `Pet: ${animation}; activity: ${activityLabel}; last event: ${lastEvent}; activity count: ${activityCount}.` : s.message; },
     updateRunActivity,
+    opaqueIdForRun: (runId: string) => opaqueRunId(runId),
     acknowledgeRun: (id: string) => {
       for (const [runId, run] of runs) {
         if (run.id !== id) continue;

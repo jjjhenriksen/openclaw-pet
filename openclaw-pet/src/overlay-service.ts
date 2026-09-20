@@ -33,6 +33,7 @@ export type StartOverlayParams = {
   getSize?: (sourceId?: string) => number;
   getWindowOffset?: (sourceId?: string) => { x: number; y: number };
   acknowledgeRun?: (runId: string) => boolean;
+  resolveOpenRun?: (runId: string) => string | undefined;
   logger: { warn: (message: string) => void };
 };
 
@@ -169,10 +170,11 @@ export function toOverlayState(snapshot: DisplaySnapshot, petSize: number, windo
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
   return {
     layout: { petSize, sourceCount: snapshot.sources.length, windowOffset },
-    sources: snapshot.sources.map(({ id, label, available, state }) => ({
+    sources: snapshot.sources.map(({ id, label, available, openable, state }) => ({
       id,
       label,
       available,
+      ...(openable !== undefined ? { openable } : {}),
       ...(() => {
         const asset = assetById.get(id);
         return asset?.creature ? { creature: asset.creature, ...(asset.lobster ? { lobster: asset.lobster } : {}) } : {};
@@ -208,13 +210,14 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
   <style>
     :root{--pet-size:${size}px}
     html,body{width:100%;height:100%;margin:0;background:transparent;overflow:hidden;user-select:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    #activity{display:${showStatus ? "block" : "none"};box-sizing:border-box;position:absolute;top:8px;left:50%;transform:translateX(-50%);width:304px;max-height:calc(100% - var(--pet-size) - 24px);overflow:hidden;padding:10px 11px;border-radius:12px;background:rgba(27,29,31,.96);color:#f5f5f5;box-shadow:0 2px 8px rgba(0,0,0,.26)}
+    #activity{display:${showStatus ? "block" : "none"};box-sizing:border-box;position:absolute;top:8px;left:50%;transform:translateX(-50%);width:304px;height:calc(100% - var(--pet-size) - 24px);max-height:calc(100% - var(--pet-size) - 24px);overflow:hidden;padding:10px 11px;border-radius:12px;background:rgba(27,29,31,.96);color:#f5f5f5;box-shadow:0 2px 8px rgba(0,0,0,.26)}
     #activity:after{content:"";position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);border:7px solid transparent;border-top-color:rgba(27,29,31,.94);border-bottom:0}
     #head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;letter-spacing:.01em}
     #summary{display:block;margin-top:2px;color:#aeb5bf;font-size:10px;font-weight:500}
     button{border:0;background:transparent;color:#b9c5ff;font:inherit;padding:0;cursor:pointer}
     ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:5px;overflow:auto;max-height:176px}
     .item{display:grid;grid-template-columns:6px minmax(0,1fr) auto;column-gap:7px;font-size:11px;line-height:14px;align-items:start}
+    .item[data-openable="true"]{cursor:pointer;border-radius:6px;padding:2px;margin:-2px}.item[data-openable="true"]:hover,.item[data-openable="true"]:focus-visible{background:rgba(185,197,255,.14);outline:none}
     .copy{min-width:0}.name{display:block;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status{display:block;color:#d1d5db;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .dot{width:6px;height:6px;border-radius:50%;background:#9ca3af;flex:0 0 auto;margin-top:4px}
     .active .dot{background:#8ab4ff}.success .dot{background:#65d6a0}.error .dot{background:#f38b8b}
@@ -237,6 +240,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
   <div id="pets"></div>
   <script>
     const animations=${animations};
+    const showSourceLabel=${showSourceLabel};
     const events=document.querySelector("#events");
     const pets=document.querySelector("#pets");
     const toggle=document.querySelector("#toggle");
@@ -284,7 +288,9 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
         status.textContent=(run.toolName?run.toolName+" · ":"")+stateLabel(run);
         copy.append(name,status);
         const ack=document.createElement("button"); ack.className="ack"; ack.type="button"; ack.textContent=run.unread?"Mark read":""; ack.setAttribute("aria-label","Mark "+session+" read");
-        ack.onclick=async()=>{if(!run.unread)return;try{await fetch("/ack-run?id="+encodeURIComponent(run.id),{method:"POST"});}catch{}};
+        ack.onclick=async(event)=>{event.stopPropagation();if(!run.unread)return;try{await fetch("/ack-run?id="+encodeURIComponent(run.id),{method:"POST"});}catch{}};
+        const openable=Boolean(source.openable&&run.session?.agentId);
+        if(openable){row.dataset.openable="true";row.tabIndex=0;row.setAttribute("role","button");row.setAttribute("aria-label","Open "+session);const open=()=>{location.href="openclaw-pet://open-run?id="+encodeURIComponent(run.id)};row.onclick=open;row.onkeydown=(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();open()}};}
         row.append(dot,copy,ack); return row;
       }):[(()=>{const row=document.createElement("li");row.className="item";row.textContent="No active sessions";return row;})()]));
     }
@@ -418,6 +424,21 @@ function requestHandler(params: StartOverlayParams): RequestListener {
       const runId = requestUrl.searchParams.get("id") ?? "";
       const acknowledged = /^run_[a-f0-9]{20}$/.test(runId) && (params.acknowledgeRun?.(runId) ?? false);
       res.writeHead(acknowledged ? 204 : 404, commonHeaders).end();
+      return;
+    }
+    if (path === "/open-run") {
+      if (req.method !== "GET") {
+        res.writeHead(405, { ...commonHeaders, allow: "GET" }).end();
+        return;
+      }
+      const runId = requestUrl.searchParams.get("id") ?? "";
+      const url = /^run_[a-f0-9]{20}$/.test(runId) ? params.resolveOpenRun?.(runId) : undefined;
+      if (!url) {
+        res.writeHead(404, commonHeaders).end();
+        return;
+      }
+      res.writeHead(200, { ...commonHeaders, "content-type": "application/json", "cache-control": "no-store" });
+      res.end(JSON.stringify({ url }));
       return;
     }
     const assetMatch = path?.match(/^\/assets\/([a-zA-Z0-9_-]{1,32})\/spritesheet\.webp$/);

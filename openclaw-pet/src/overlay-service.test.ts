@@ -21,6 +21,7 @@ const snapshot: DisplaySnapshot = {
     id: "local",
     label: "Local",
     available: true,
+    openable: true,
     state: {
       animation: "review",
       changedAt: 1234,
@@ -37,6 +38,7 @@ const remoteSnapshot: DisplaySnapshot = {
       id: "remote",
       label: "Remote",
       available: true,
+      openable: false,
       state: {
         animation: "idle",
         changedAt: 5678,
@@ -546,8 +548,26 @@ describe("overlay lifecycle", () => {
     expect(body).toContain(".pet-hidden #pets{display:none}");
     expect(body).toContain('toggle.textContent=hidden?"Show":"Hide"');
     expect(body).toContain('openclaw-pet://pets-hidden?hidden=');
+    expect(body).toContain('openclaw-pet://open-run?id=');
+    expect(body).toContain('row.dataset.openable="true"');
     expect(body).toContain("#activity:after");
     expect(body).toContain("top:8px;left:50%;transform:translateX(-50%)");
+    await service.stop();
+  });
+
+  it("resolves an opaque run id through the trusted host endpoint", async () => {
+    const { service, listeners } = harness();
+    await service.start({ ...params(), resolveOpenRun: (runId) => runId === "run_aaaaaaaaaaaaaaaaaaaa" ? "http://127.0.0.1:18789/chat/main" : undefined });
+    let status = 0;
+    let body = "";
+    const response = {
+      headersSent: false,
+      writeHead(nextStatus: number) { status = nextStatus; return this; },
+      end(chunk?: string) { body = chunk ?? ""; return this; },
+    };
+    listeners[0]?.({ method: "GET", url: "/open-run?id=run_aaaaaaaaaaaaaaaaaaaa" } as IncomingMessage, response as unknown as ServerResponse);
+    expect(status).toBe(200);
+    expect(JSON.parse(body)).toEqual({ url: "http://127.0.0.1:18789/chat/main" });
     await service.stop();
   });
 
@@ -579,6 +599,7 @@ describe("overlay privacy boundary", () => {
         id: "local",
         label: "Local",
         available: true,
+        openable: true,
         state: {
           animation: "review",
           changedAt: 1234,
