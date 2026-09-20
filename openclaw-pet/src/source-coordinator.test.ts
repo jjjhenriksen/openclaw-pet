@@ -48,6 +48,20 @@ describe("pet source configuration", () => {
     ]);
   });
 
+  it("marks local sources openable and remote sources non-openable", () => {
+    const coordinator = new SourceCoordinator({
+      config,
+      getLocalSnapshot: () => localSnapshot,
+      logger: { warn: vi.fn() },
+      validateAssetDir: () => true,
+    });
+
+    expect(coordinator.snapshot().sources.map(({ id, openable }) => ({ id, openable }))).toEqual([
+      { id: "local", openable: true },
+      { id: "remote", openable: false },
+    ]);
+  });
+
   it("allows source asset paths to inherit from the display host", () => {
     expect(resolvePetSources({
       assetDir: "/assets/shared",
