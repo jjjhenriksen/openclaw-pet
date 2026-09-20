@@ -1,4 +1,5 @@
 import { formatSessionContext, formatSessionLog, getCronRunJobId, getSessionContext, type SessionContext } from "./run-context.js";
+import type { RunLifecycleState, RunSession } from "./pet-controller.js";
 
 export type PetAgentEvent = {
   runId: string;
@@ -15,6 +16,7 @@ type PetEventSink = {
   toolStarted: (toolName?: string, activityLabel?: string) => void;
   toolFinished: (failed: boolean, activityLabel?: string) => void;
   agentEnded: (failed: boolean, activityLabel?: string) => void;
+  updateRunActivity?: (update: { runId: string; session?: RunSession; state: RunLifecycleState; toolName?: string; attention?: boolean; unread?: boolean }) => void;
 };
 
 type PetEventLogger = {
@@ -46,6 +48,17 @@ export function createPetEventHandler(params: {
   const applyEvent = (event: PetAgentEvent, discovered: SessionContext | undefined): void => {
     const context = discovered ?? contexts.get(event.runId);
     const phase = String(event.data.phase ?? event.data.status ?? event.data.type ?? "").toLowerCase();
+    const toolName = event.stream === "tool" ? safeToolName(event.data) : undefined;
+    const runState: RunLifecycleState = event.stream === "tool"
+      ? (phase.includes("fail") || phase.includes("error") || phase.includes("end") || phase.includes("result") || phase.includes("complete") ? (phase.includes("fail") || phase.includes("error") ? "failed" : "thinking") : "tool")
+      : phase === "finishing" ? "finishing"
+        : phase.includes("error") || phase.includes("fail") || event.data.aborted === true ? "failed"
+          : phase.includes("end") || phase.includes("complete") || phase.includes("finish") ? "completed"
+            : event.stream === "lifecycle" && phase === "start" ? "starting" : "thinking";
+    const session = discovered ? { kind: discovered.kind, ...(discovered.label ? { displayName: discovered.label } : {}), ...(discovered.agentId ? { agentId: discovered.agentId } : {}) } : undefined;
+    if (event.runId) {
+      params.pet.updateRunActivity?.({ runId: event.runId, ...(session ? { session } : {}), state: runState, ...(toolName ? { toolName } : {}), ...(runState === "failed" ? { attention: true, unread: true } : runState === "completed" ? { unread: true } : {}) });
+    }
 
     if (event.stream === "lifecycle" && phase === "start" && context) {
       params.logger.info?.(formatSessionLog(context, "started"));
@@ -60,7 +73,6 @@ export function createPetEventHandler(params: {
       } else if (phase.includes("end") || phase.includes("result") || phase.includes("complete")) {
         params.pet.toolFinished(false, contextLabel(context, "Tool complete"));
       } else {
-        const toolName = safeToolName(event.data);
         params.pet.toolStarted(toolName, contextLabel(context, toolName ? `Running ${toolName}` : "Running tool"));
       }
     } else if (phase === "finishing") {

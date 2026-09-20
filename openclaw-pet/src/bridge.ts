@@ -1,14 +1,26 @@
-import type { ActivityItem, Animation, PetSnapshot } from "./pet-controller.js";
+import type { ActivityItem, Animation, PetSnapshot, RunActivity, RunLifecycleState, RunSession } from "./pet-controller.js";
 
-export const PET_BRIDGE_VERSION = 1 as const;
+export const PET_BRIDGE_VERSION = 2 as const;
 
 export type SanitizedActivityItem = Pick<ActivityItem, "id" | "label" | "tone">;
+
+export type SanitizedRunActivity = {
+  id: string;
+  session?: RunSession;
+  state: RunLifecycleState;
+  toolName?: string;
+  startedAt: number;
+  updatedAt: number;
+  attention: boolean;
+  unread: boolean;
+};
 
 export type SanitizedPetState = {
   animation: Animation;
   changedAt: number;
   activityLabel: string;
   activity: SanitizedActivityItem[];
+  runs: SanitizedRunActivity[];
 };
 
 export type PetBridgeSnapshot = {
@@ -44,6 +56,28 @@ function safeLabel(value: unknown): string | undefined {
   return normalized.length > 0 && normalized.length <= 140 ? normalized : undefined;
 }
 
+function parseRun(value: unknown): SanitizedRunActivity | undefined {
+  if (!isRecord(value) || !["id", "state", "startedAt", "updatedAt", "attention", "unread"].every((key) => key in value) || Object.keys(value).some((key) => !["id", "session", "state", "toolName", "startedAt", "updatedAt", "attention", "unread"].includes(key))) return undefined;
+  if (typeof value.id !== "string" || !/^run_[a-f0-9]{20}$/.test(value.id)) return undefined;
+  if (typeof value.state !== "string" || !new Set(["starting", "thinking", "tool", "finishing", "completed", "failed"]).has(value.state)) return undefined;
+  if (!Number.isSafeInteger(value.startedAt) || !Number.isSafeInteger(value.updatedAt) || (value.startedAt as number) < 0 || (value.updatedAt as number) < (value.startedAt as number)) return undefined;
+  if (typeof value.attention !== "boolean" || typeof value.unread !== "boolean") return undefined;
+  if (value.toolName !== undefined && (typeof value.toolName !== "string" || !/^[a-zA-Z0-9_:-]{1,48}$/.test(value.toolName))) return undefined;
+  if (value.session !== undefined) {
+    if (!isRecord(value.session) || !("kind" in value.session) || Object.keys(value.session).some((key) => !["kind", "displayName", "agentId"].includes(key))) return undefined;
+    if (value.session.kind !== "cron" && value.session.kind !== "session") return undefined;
+    if (value.session.displayName !== undefined && (!safeLabel(value.session.displayName) || safeLabel(value.session.displayName)!.length > 80)) return undefined;
+    if (value.session.agentId !== undefined && (typeof value.session.agentId !== "string" || !/^[a-zA-Z0-9_-]{1,64}$/.test(value.session.agentId))) return undefined;
+  }
+  return value as SanitizedRunActivity;
+}
+
+function parseRuns(value: unknown): SanitizedRunActivity[] | undefined {
+  if (!Array.isArray(value) || value.length > 16) return undefined;
+  const runs = value.map(parseRun);
+  return runs.every(Boolean) ? runs as SanitizedRunActivity[] : undefined;
+}
+
 function parseActivity(value: unknown): SanitizedActivityItem[] | undefined {
   if (!Array.isArray(value) || value.length > 6) return undefined;
   const result: SanitizedActivityItem[] = [];
@@ -62,6 +96,16 @@ export function toSanitizedPetState(snapshot: PetSnapshot): SanitizedPetState {
     animation: snapshot.animation,
     changedAt: snapshot.changedAt,
     activityLabel: safeLabel(snapshot.activityLabel) ?? "Working",
+    runs: (snapshot.runs ?? []).slice(0, 16).map((run) => ({
+      id: run.id,
+      ...(run.session ? { session: { kind: run.session.kind, ...(run.session.displayName ? { displayName: safeLabel(run.session.displayName)?.slice(0, 80) } : {}), ...(run.session.agentId ? { agentId: run.session.agentId } : {}) } } : {}),
+      state: run.state,
+      ...(run.toolName ? { toolName: run.toolName } : {}),
+      startedAt: run.startedAt,
+      updatedAt: run.updatedAt,
+      attention: run.attention,
+      unread: run.unread,
+    })) ,
     activity: snapshot.activity.slice(0, 6).map(({ id, label, tone }, index) => ({
       id: Number.isSafeInteger(id) && id >= 0 ? id : index,
       label: safeLabel(label) ?? "Activity",
@@ -77,12 +121,13 @@ export function toBridgeSnapshot(snapshot: PetSnapshot): PetBridgeSnapshot {
 export function parseBridgeSnapshot(value: unknown): PetBridgeSnapshot | undefined {
   if (!isRecord(value) || !hasOnlyKeys(value, ["version", "state"]) || value.version !== PET_BRIDGE_VERSION || !isRecord(value.state)) return undefined;
   const state = value.state;
-  if (!hasOnlyKeys(state, ["animation", "changedAt", "activityLabel", "activity"])) return undefined;
+  if (!hasOnlyKeys(state, ["animation", "changedAt", "activityLabel", "activity", "runs"])) return undefined;
   if (typeof state.animation !== "string" || !animations.has(state.animation as Animation)) return undefined;
   if (!Number.isSafeInteger(state.changedAt) || (state.changedAt as number) < 0) return undefined;
   const activityLabel = safeLabel(state.activityLabel);
   const activity = parseActivity(state.activity);
-  if (!activityLabel || !activity) return undefined;
+  const runs = parseRuns(state.runs);
+  if (!activityLabel || !activity || !runs) return undefined;
   return {
     version: PET_BRIDGE_VERSION,
     state: {
@@ -90,6 +135,7 @@ export function parseBridgeSnapshot(value: unknown): PetBridgeSnapshot | undefin
       changedAt: state.changedAt as number,
       activityLabel,
       activity,
+      runs,
     },
   };
 }
