@@ -257,7 +257,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
       location.href="openclaw-pet://pets-hidden?hidden="+encodeURIComponent(String(hidden));
     };
     function stateRank(run){return run.attention?0:run.state==="completed"&&run.unread?1:run.state==="failed"?0:run.state==="tool"||run.state==="thinking"||run.state==="starting"?2:3}
-    function stateLabel(run){return run.attention?"Needs your attention":run.state==="completed"?"Ready":run.state==="failed"?"Failed":run.state==="tool"?"Running tool":run.state==="finishing"?"Finishing":run.state==="starting"?"Starting":"Thinking"}
+    function stateLabel(run){return run.attention?"Needs review":run.state==="completed"?"Ready":run.state==="failed"?"Failed":run.state==="tool"?"Running tool":run.state==="finishing"?"Finishing":run.state==="starting"?"Starting":"Thinking"}
     function toneFor(source){
       if(!source.available)return "unavailable";
       const item=source.state.activity&&source.state.activity[0];
@@ -283,7 +283,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
         const name=document.createElement("span"); name.className="name";
         const status=document.createElement("span"); status.className="status";
         if(!run){name.textContent=source.label;status.textContent="Source unavailable";copy.append(name,status);row.append(dot,copy);return row;}
-        const session=run.session?.displayName||run.session?.kind||"Session";
+        const session=run.session?.displayName||(run.session?.kind==="cron"?"Scheduled task":"Unnamed conversation");
         name.textContent=(showSourceLabel?source.label+" · ":"")+session+(run.session?.agentId?" · "+run.session.agentId:"");
         status.textContent=(run.toolName?run.toolName+" · ":"")+stateLabel(run);
         copy.append(name,status);
