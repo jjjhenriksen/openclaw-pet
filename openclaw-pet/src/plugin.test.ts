@@ -32,6 +32,20 @@ function registerPlugin(pluginConfig: unknown = { overlay: { enabled: false } })
   };
 }
 
+describe("plugin command setup and visibility", () => {
+  it("offers setup previews without mutating config and supports tuck/wake", async () => {
+    const registered = registerPlugin({ creature: "duck", overlay: { enabled: false } });
+    const command = registered.getCommand();
+    const setup = await command.handler({ args: "setup lobster size=288 flavor=blue" });
+    expect(setup.text).toContain('"creature": "lobster"');
+    expect(setup.text).toContain('"size": 288');
+    expect(setup.text).toContain("no files changed");
+    expect((await command.handler({ args: "tuck" })).text).toContain("tucked away");
+    expect((await command.handler({ args: "status" })).text).toContain("overlay tucked away");
+    expect((await command.handler({ args: "wake" })).text).toContain("Pet awake");
+  });
+});
+
 describe("plugin bridge registration", () => {
   it("exposes the same sanitized snapshot over read-scoped RPC and authenticated HTTP", async () => {
     const registered = registerPlugin();

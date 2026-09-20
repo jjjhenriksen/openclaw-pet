@@ -6,6 +6,7 @@ import { createSessionDisplayNameResolver } from "./session-label.js";
 import { createPetController, type PetConfig } from "./pet-controller.js";
 import { normalizeOverlaySize, startOverlay, stopOverlay } from "./overlay-service.js";
 import { BRIDGE_SNAPSHOT_METHOD, SourceCoordinator, type DisplaySourceAsset } from "./source-coordinator.js";
+import { parseSetupArgs, setupHelp, setupPreview } from "./setup-flow.js";
 
 const plugin: OpenClawPluginDefinition = definePluginEntry({
   id: "openclaw-pet",
@@ -21,6 +22,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
     let overlaySize = normalizeOverlaySize(config?.overlay?.size) ?? 160;
     const sourceSizes = new Map<string, number>();
     let overlayStateDir = process.env.TMPDIR ?? "/tmp";
+    let tuckedAway = false;
     const getSourceSize = (sourceId?: string): number => {
       if (!sourceId) return overlaySize;
       const source = sources.assets().find((candidate) => candidate.id === sourceId);
@@ -37,6 +39,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
     }));
     const launchOverlay = async (stateDir: string) => {
       overlayStateDir = stateDir;
+      if (tuckedAway) return;
       if (config?.enabled === false || config?.overlay?.enabled === false) return;
       const assets = displayAssets();
       if (assets.length === 0) return;
@@ -55,6 +58,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
     };
 
     const displayStatus = () => ({
+      tuckedAway,
       enabled: config?.enabled !== false && config?.overlay?.enabled !== false && sources.assets().length > 0,
       size: overlaySize,
       sources: sources.snapshot().sources.map(({ id, label, available }) => ({
@@ -157,8 +161,23 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
       description: "Show or reset the desktop pet.",
       acceptsArgs: true,
       handler: async (ctx) => {
-        await launchOverlay(overlayStateDir);
         const args = ctx.args?.trim() ?? "";
+        if (args === "setup" || args.startsWith("setup ")) {
+          const parsed = parseSetupArgs(args.slice("setup".length).trim());
+          return { text: parsed.ok ? setupPreview(parsed.options) : parsed.message };
+        }
+        if (args === "help") return { text: setupHelp() };
+        if (args === "tuck") {
+          tuckedAway = true;
+          await stopOverlay();
+          return { text: "Pet tucked away. Run /pet wake to show it again." };
+        }
+        if (args === "wake") {
+          tuckedAway = false;
+          await launchOverlay(overlayStateDir);
+          return { text: "Pet awake. " + pet.statusText() };
+        }
+        await launchOverlay(overlayStateDir);
         if (args === "reset") return { text: pet.reset().message };
         const sourceResizeMatch = args.match(/^resize\s+([a-zA-Z0-9_-]{1,32})\s+(\d+)$/);
         if (sourceResizeMatch) {
@@ -172,7 +191,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
         }
         const display = displayStatus();
         const sourceSummary = display.sources.map((source) => `${source.label} ${source.size}px`).join(", ");
-        return { text: `${pet.statusText()} Display: ${sourceSummary || `${overlaySize}px`}; ${sources.assets().length} source(s).` };
+        return { text: `${pet.statusText()} Display: ${sourceSummary || `${overlaySize}px`}; ${sources.assets().length} source(s); overlay ${tuckedAway ? "tucked away" : "awake"}.` };
       },
     });
 
