@@ -207,7 +207,7 @@ const plugin: OpenClawPluginDefinition = definePluginEntry({
           return { text: result.ok ? `All pet displays resized to ${result.size}px.` : `Pet resize failed: ${result.message}` };
         }
         const display = displayStatus();
-        const sourceSummary = display.sources.map((source) => `${source.label} ${source.size}px`).join(", ");
+        const sourceSummary = display.sources.map((source) => `${source.label} ${source.available ? "available" : "unavailable"} ${source.size}px`).join(", ");
         return { text: `${pet.statusText()} Display: ${sourceSummary || `${overlaySize}px`}; ${sources.assets().length} source(s); overlay ${tuckedAway ? "tucked away" : "awake"}.` };
       },
     });
