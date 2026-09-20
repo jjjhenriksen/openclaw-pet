@@ -1,0 +1,177 @@
+{
+  "source": "OpenClaw ui/src/components/lobster-pet-look.ts + lobster-pet-sprites*.ts",
+  "viewport": [
+    480,
+    420
+  ],
+  "fixtures": {
+    "crimson": {
+      "file": "crimson.png",
+      "sha256": "a4282090920f4b34152bfda343388ed09a4f868d0ec7f8df91c9318a6b89518e"
+    },
+    "blue": {
+      "file": "blue.png",
+      "sha256": "706d8e82ecdbc33eb9973e575c811e61eec58bbacb16926452493230eda1458b"
+    },
+    "gold": {
+      "file": "gold.png",
+      "sha256": "a5fc5b76b90119db0bf7045684bbb262bd6335b13e6364fedabb3472291ea181"
+    },
+    "lumen": {
+      "file": "lumen.png",
+      "sha256": "3c66829ac1387fa594774ce25b821723e2b649e6abf29fdc3835c80ee352a094"
+    },
+    "magma": {
+      "file": "magma.png",
+      "sha256": "5d05204a352b8e5b56c64278a5b18ddeeaec42e18da90ad3b0e1ad2455c303ed"
+    },
+    "oilslick": {
+      "file": "oilslick.png",
+      "sha256": "46a185c92cd700c350da312190dcf7893156e6077565bf00d74bb98626d30dbc"
+    },
+    "aurora": {
+      "file": "aurora.png",
+      "sha256": "f50080657b2b9eea8621d1a553d9dfb651936dcf1724529c2f42f6efacc671c3"
+    },
+    "nebula": {
+      "file": "nebula.png",
+      "sha256": "8d903107a82c643fc4066b730591c0a166643ba8eaa0264ac3d059d414a3a53b"
+    },
+    "banana": {
+      "file": "banana.png",
+      "sha256": "386fbd1b5f6aa6364e2915ed6ea05b5307eb3855364c6e7a8dc55ad9fd373b99"
+    },
+    "mood": {
+      "file": "mood.png",
+      "sha256": "e5d3031a2e738f327ededa9de3ce4f6f0a22952cf71c95b4df1109e8aae884e2"
+    },
+    "bee": {
+      "file": "bee.png",
+      "sha256": "79633ec81e5488f0463765ddc1f8ac047b44aca9df2a223dc3ecfb40f083afad"
+    },
+    "rubberduck": {
+      "file": "rubberduck.png",
+      "sha256": "4111be14bfaec99dfcd062c32aea9ea15078884f3ff88dc837d52371abf42a32"
+    },
+    "watermelon": {
+      "file": "watermelon.png",
+      "sha256": "601cae56aadd574531d153b50a911694f59512d2aea8abfe926b33a2a0ee78cc"
+    },
+    "clawtron": {
+      "file": "clawtron.png",
+      "sha256": "c1dc827d08a4796b88c34ad270f909260e1d2d80459e1079e96d372a9ea8e22c"
+    },
+    "selene": {
+      "file": "selene.png",
+      "sha256": "a04038beac0c5694771e055be24d1b966d87c06e4ed7ce1d9a6ca99077218fac"
+    },
+    "geode": {
+      "file": "geode.png",
+      "sha256": "86c5a800f3dbe3b9cbb09676c6c1341a28565ffd1c51302c61e177499e75b144"
+    },
+    "ghost": {
+      "file": "ghost.png",
+      "sha256": "cb6ad6daea0670290e028a855f99976c6b4f753c273f97e2a0b9b1facb01bc11"
+    },
+    "glass": {
+      "file": "glass.png",
+      "sha256": "20eb98ab37200b33b34efb470a85210e9a02ec204d1959ac3d7bdd01a9827cb5"
+    },
+    "split": {
+      "file": "split.png",
+      "sha256": "c432e7f0a5e10a9358ecbb39a12f0181aa032c9a9d8d8371ffd6b9267c5c63f8"
+    },
+    "sourdough": {
+      "file": "sourdough.png",
+      "sha256": "d19ed36819919e9cd40be83859c6a27cfcc4b4071192576a185b2aa1a6bc11c8"
+    },
+    "zombie": {
+      "file": "zombie.png",
+      "sha256": "457a8fd32ea1ebf6325566f0b9562471d7b4830954cd1c35514f7276d66c53d3"
+    },
+    "plush": {
+      "file": "plush.png",
+      "sha256": "0d40d927f7d35293d831ebb5d5cbe5a2178682fb98508457366e816e292371b2"
+    },
+    "balloon": {
+      "file": "balloon.png",
+      "sha256": "8ff093b4d10787260be8e23f0c80cbb76104a730d96d3c397a0f4a5c082b5992"
+    },
+    "cryptid": {
+      "file": "cryptid.png",
+      "sha256": "29bf0917955cc2cc5d61d7ecf9b3f2565df7c49de4d865739a19a3473db86396"
+    },
+    "flatpack": {
+      "file": "flatpack.png",
+      "sha256": "1213e89eec2ed6a79a8b3e1c6afcba84715a0d042a8ad440f66f8ef30901fef8"
+    },
+    "tinfoil": {
+      "file": "tinfoil.png",
+      "sha256": "ea01ad7290daf0db034e1b286130d87a4518e7600003d30510bda8067f1c774f"
+    },
+    "actual": {
+      "file": "actual.png",
+      "sha256": "22c99e2da67c013032e52808fc7d297a79d1f17fe3fefd0ef9cd1d81e01faea8"
+    },
+    "cottoncandy": {
+      "file": "cottoncandy.png",
+      "sha256": "057086a047ac3f51f45b53be207d8261011316bb389fb6c0640e60476d95e9fc"
+    },
+    "disco": {
+      "file": "disco.png",
+      "sha256": "ebc1214be0dbf11a118d686a7c9bd1234d0e7f2f2763ab24b09977b0d9bd40bc"
+    },
+    "chimera": {
+      "file": "chimera.png",
+      "sha256": "be54e2686d0162c56dc467f14fdef87575cd97272500a69cb512adaf28ee94de"
+    },
+    "pixel": {
+      "file": "pixel.png",
+      "sha256": "d1acda4603a5174d0e831de3f803729029dca4ec19b503a820e3d17a08ece611"
+    },
+    "blueprint": {
+      "file": "blueprint.png",
+      "sha256": "9f903df044c837aec2c6735a232f91faf3b149176e88d3a508aa3ea6c5d45675"
+    },
+    "phosphor": {
+      "file": "phosphor.png",
+      "sha256": "6d245e994ea857d32c06ea1426ab35cfca9ebcd0107cd8125fcf494b869eef2d"
+    },
+    "ascii": {
+      "file": "ascii.png",
+      "sha256": "5cdf2022c8dfe06844aac8edc653e3a1cd7fa716b845d4869970a6fcb78fe03c"
+    },
+    "portal": {
+      "file": "portal.png",
+      "sha256": "5e42c45b390cb0fe8483b6ce8a5ff5fd47b09bc3813901836ec38ea3e0466a33"
+    },
+    "notexture": {
+      "file": "notexture.png",
+      "sha256": "e2e3611f3c8d34f99b4710fc0fdd117f86a45d682e21405d8597b6b1aee69962"
+    },
+    "loading": {
+      "file": "loading.png",
+      "sha256": "2fe3d598625f8677fe25fca5c86517cb6859eaccb4815bb66e0d58fb664a3388"
+    },
+    "eclipse": {
+      "file": "eclipse.png",
+      "sha256": "14e59a5a88e9bc2e91bbcfa6700ae5afc9572b9bfe38c868b94406f994fca241"
+    },
+    "heisenbug": {
+      "file": "heisenbug.png",
+      "sha256": "e86daca06bd2a4ea3a0bf425e78a7dd61924ba13807ce22896186ad1dc752342"
+    },
+    "invisible": {
+      "file": "invisible.png",
+      "sha256": "cb4dae88389c4d329e6ccb7a9f405b198970e7a17c700b5391acb344a4e25cd7"
+    },
+    "retro": {
+      "file": "retro.png",
+      "sha256": "5c14b082217ac32613d33ada2fe3dbae08c7079bc683d73d08e03957d674dd2d"
+    },
+    "goldenretro": {
+      "file": "goldenretro.png",
+      "sha256": "f9d6998dcdf918cf9eb6d0335c0e8a1a879d71a58dac76b7c74260e00d90a7ea"
+    }
+  }
+}
