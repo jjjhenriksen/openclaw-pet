@@ -25,7 +25,9 @@ Both native helpers load the same renderer from the loopback server. If that ren
    ```
 
 3. Install the local package with `openclaw plugins install .`, then enable conversation access for the plugin and configure `plugins.entries.openclaw-pet.config`.
-4. Restart the Gateway. Use `/pet` for status, `/pet reset` to return the local pet to idle, `/pet resize 288` to resize all pets, and `/pet resize server 320` to resize one source at runtime.
+4. Restart the Gateway. Use `/pet` or `/pet status` for status, `/pet reset` to return the local pet to idle, `/pet resize 288` to resize all pets, and `/pet resize server 320` to resize one source at runtime.
+
+For first-run setup, `/pet help` lists the supported built-in creatures. `/pet setup lobster size=288 flavor=blue` (or `/pet setup custom /absolute/path`) validates the selection/assets and prints a copy-pasteable JSON preview; it never writes files or changes Gateway config. Supported setup options are `size` (96–768), `corner`, `showStatus`, `clickThrough`, and lobster `flavor`. After applying the preview under `plugins.entries.openclaw-pet.config` and restarting, `/pet status` reports asset readiness, source availability, overlay sizing, and whether the overlay is awake. `/pet tuck` stops the local overlay until `/pet wake` starts it again.
 
 Example plugin config (use escaped backslashes in JSON on Windows):
 
