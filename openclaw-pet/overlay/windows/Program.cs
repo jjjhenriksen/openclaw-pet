@@ -92,7 +92,7 @@ internal sealed class OverlayWindow : Window
     private const uint NoActivatePositionFlag = 0x0010;
     private const uint FrameChangedPositionFlag = 0x0020;
     private const double DragButtonReserve = 80;
-    private const double ActivityHeight = 128;
+    private const double ActivityHeight = 220;
     private readonly OverlayArguments options;
     private readonly WebView2CompositionControl webView;
     private readonly Uri origin;
@@ -306,7 +306,7 @@ internal sealed class OverlayWindow : Window
     private double LayoutWidth(int size, int sourceCount)
     {
         var petWidth = size * sourceCount;
-        return options.ShowStatus ? Math.Max(petWidth, 220) : petWidth;
+        return options.ShowStatus ? Math.Max(petWidth, 320) : petWidth;
     }
 
     private double LayoutHeight(int size) => options.ShowStatus ? size + 128 : size;

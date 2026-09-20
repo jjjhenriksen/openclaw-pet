@@ -63,8 +63,8 @@ let offsetY = CommandLine.arguments.count >= 8 ? Int(CommandLine.arguments[7]) ?
 let showStatus = CommandLine.arguments.count < 9 || CommandLine.arguments[8] != "false"
 let frame = NSScreen.main?.visibleFrame ?? .zero
 let edge: CGFloat = 20
-let activityWidth: CGFloat = 220
-let activityHeight: CGFloat = 128
+let activityWidth: CGFloat = 320
+let activityHeight: CGFloat = 220
 let dragButtonReserve: CGFloat = 80
 func overlayDimensions(size: Int, sourceCount: Int) -> (width: CGFloat, height: CGFloat) {
   let petWidth = CGFloat(size * sourceCount)

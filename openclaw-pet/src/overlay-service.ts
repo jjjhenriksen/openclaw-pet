@@ -10,8 +10,8 @@ import type { DisplaySnapshot, DisplaySourceAsset, DisplaySourceState } from "./
 
 export const MIN_OVERLAY_SIZE = 96;
 export const MAX_OVERLAY_SIZE = 768;
-export const OVERLAY_ACTIVITY_WIDTH = 220;
-export const OVERLAY_ACTIVITY_HEIGHT = 128;
+export const OVERLAY_ACTIVITY_WIDTH = 320;
+export const OVERLAY_ACTIVITY_HEIGHT = 220;
 
 export type OverlayHelper = {
   executable: string;
@@ -31,6 +31,7 @@ export type StartOverlayParams = {
   getSnapshot: () => DisplaySnapshot;
   getSize?: (sourceId?: string) => number;
   getWindowOffset?: (sourceId?: string) => { x: number; y: number };
+  acknowledgeRun?: (runId: string) => boolean;
   logger: { warn: (message: string) => void };
 };
 
@@ -206,16 +207,19 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
   <style>
     :root{--pet-size:${size}px}
     html,body{width:100%;height:100%;margin:0;background:transparent;overflow:hidden;user-select:none;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    #activity{display:${showStatus ? "block" : "none"};box-sizing:border-box;position:absolute;top:8px;left:50%;transform:translateX(-50%);width:204px;max-height:calc(100% - var(--pet-size) - 24px);overflow:hidden;padding:9px 10px;border-radius:11px;background:rgba(27,29,31,.94);color:#f5f5f5;box-shadow:0 2px 8px rgba(0,0,0,.26)}
+    #activity{display:${showStatus ? "block" : "none"};box-sizing:border-box;position:absolute;top:8px;left:50%;transform:translateX(-50%);width:304px;max-height:calc(100% - var(--pet-size) - 24px);overflow:hidden;padding:10px 11px;border-radius:12px;background:rgba(27,29,31,.96);color:#f5f5f5;box-shadow:0 2px 8px rgba(0,0,0,.26)}
     #activity:after{content:"";position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);border:7px solid transparent;border-top-color:rgba(27,29,31,.94);border-bottom:0}
     #head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;letter-spacing:.01em}
+    #summary{display:block;margin-top:2px;color:#aeb5bf;font-size:10px;font-weight:500}
     button{border:0;background:transparent;color:#b9c5ff;font:inherit;padding:0;cursor:pointer}
-    ul{list-style:none;margin:7px 0 0;padding:0;display:grid;gap:5px}
-    .item{display:grid;grid-template-columns:6px minmax(0,1fr);column-gap:6px;font-size:11px;line-height:14px}
+    ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:5px;overflow:auto;max-height:176px}
+    .item{display:grid;grid-template-columns:6px minmax(0,1fr) auto;column-gap:7px;font-size:11px;line-height:14px;align-items:start}
     .copy{min-width:0}.name{display:block;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status{display:block;color:#d1d5db;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .dot{width:6px;height:6px;border-radius:50%;background:#9ca3af;flex:0 0 auto}
+    .dot{width:6px;height:6px;border-radius:50%;background:#9ca3af;flex:0 0 auto;margin-top:4px}
     .active .dot{background:#8ab4ff}.success .dot{background:#65d6a0}.error .dot{background:#f38b8b}
     .unavailable .dot{background:#9ca3af}.unavailable .status{color:#a8adb5}
+    .attention .dot{background:#f2bd67}.attention .status{color:#f6d08b}
+    .ack{font-size:10px;color:#aeb5bf;padding:1px 0 0;opacity:.8}.ack:hover{color:#fff;opacity:1}
     .pet-hidden #pets{display:none}
     #pets{position:absolute;right:0;bottom:${showStatus ? 8 : 0}px;display:flex;align-items:flex-end}
     .pet{position:relative;width:var(--pet-size);height:var(--pet-size);flex:0 0 auto}.pet.unavailable{opacity:.46}
@@ -225,7 +229,8 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
 </head>
 <body>
   <section id="activity" aria-live="polite">
-    <div id="head"><span>OpenClaw pets</span><button id="toggle" aria-expanded="true">Hide</button></div>
+    <div id="head"><span>OpenClaw activity</span><button id="toggle" aria-expanded="true">Hide</button></div>
+    <span id="summary">Watching your active sessions</span>
     <ul id="events"></ul>
   </section>
   <div id="pets"></div>
@@ -246,29 +251,39 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
       toggle.setAttribute("aria-label",hidden?"Show pets":"Hide pets");
       location.href="openclaw-pet://pets-hidden?hidden="+encodeURIComponent(String(hidden));
     };
+    function stateRank(run){return run.attention?0:run.state==="completed"&&run.unread?1:run.state==="failed"?0:run.state==="tool"||run.state==="thinking"||run.state==="starting"?2:3}
+    function stateLabel(run){return run.attention?"Needs your attention":run.state==="completed"?"Ready":run.state==="failed"?"Failed":run.state==="tool"?"Running tool":run.state==="finishing"?"Finishing":run.state==="starting"?"Starting":"Thinking"}
     function toneFor(source){
       if(!source.available)return "unavailable";
       const item=source.state.activity&&source.state.activity[0];
       return item?item.tone:"neutral";
     }
     function renderActivity(sources){
-      events.replaceChildren(...(sources||[]).map(source=>{
+      const items=[];
+      for(const source of sources||[]){
+        if(!source.available){items.push({source,run:null});continue;}
+        for(const run of source.state.runs||[])items.push({source,run});
+      }
+      items.sort((a,b)=>{const rankA=a.run?stateRank(a.run):4,rankB=b.run?stateRank(b.run):4;return rankA-rankB||(b.run?.updatedAt||0)-(a.run?.updatedAt||0)});
+      const visible=items.slice(0,8);
+      const attention=visible.filter(item=>item.run?.attention).length;
+      document.querySelector("#summary").textContent=attention?attention+" waiting on you":"Watching "+visible.length+" active session"+(visible.length===1?"":"s");
+      events.replaceChildren(...(visible.length?visible.map(({source,run})=>{
         const row=document.createElement("li");
-        row.className="item "+toneFor(source);
-        const dot=document.createElement("span");
-        dot.className="dot";
-        const copy=document.createElement("span");
-        copy.className="copy";
-        const name=document.createElement("span");
-        name.className="name";
-        name.textContent=source.label;
-        const status=document.createElement("span");
-        status.className="status";
-        status.textContent=source.available?(source.state.activityLabel||"Ready"):"Source unavailable";
+        row.className="item "+(run?.attention?"attention ":toneFor(source));
+        const dot=document.createElement("span"); dot.className="dot";
+        const copy=document.createElement("span"); copy.className="copy";
+        const name=document.createElement("span"); name.className="name";
+        const status=document.createElement("span"); status.className="status";
+        if(!run){name.textContent=source.label;status.textContent="Source unavailable";copy.append(name,status);row.append(dot,copy);return row;}
+        const session=run.session?.displayName||run.session?.kind||"Session";
+        name.textContent=source.label+" · "+session+(run.session?.agentId?" · "+run.session.agentId:"");
+        status.textContent=(run.toolName?run.toolName+" · ":"")+stateLabel(run);
         copy.append(name,status);
-        row.append(dot,copy);
-        return row;
-      }));
+        const ack=document.createElement("button"); ack.className="ack"; ack.type="button"; ack.textContent=run.unread?"Mark read":""; ack.setAttribute("aria-label","Mark "+session+" read");
+        ack.onclick=async()=>{if(!run.unread)return;try{await fetch("/ack-run?id="+encodeURIComponent(run.id),{method:"POST"});}catch{}};
+        row.append(dot,copy,ack); return row;
+      }):[(()=>{const row=document.createElement("li");row.className="item";row.textContent="No active sessions";return row;})()]));
     }
     function createRenderer(source){
       const root=document.createElement("div");
@@ -374,7 +389,8 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean): st
 
 function requestHandler(params: StartOverlayParams): RequestListener {
   return (req, res) => {
-    const path = req.url?.split("?")[0];
+    const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
+    const path = requestUrl.pathname;
     const commonHeaders = { "x-content-type-options": "nosniff" };
     if (path === "/") {
       res.writeHead(200, {
@@ -389,6 +405,16 @@ function requestHandler(params: StartOverlayParams): RequestListener {
     if (path === "/state") {
       res.writeHead(200, { ...commonHeaders, "content-type": "application/json", "cache-control": "no-store" });
         res.end(JSON.stringify(toOverlayState(params.getSnapshot(), effectiveOverlaySize(params), effectiveWindowOffset(params), params.assets)));
+      return;
+    }
+    if (path === "/ack-run") {
+      if (req.method !== "POST") {
+        res.writeHead(405, { ...commonHeaders, allow: "POST" }).end();
+        return;
+      }
+      const runId = requestUrl.searchParams.get("id") ?? "";
+      const acknowledged = /^run_[a-f0-9]{20}$/.test(runId) && (params.acknowledgeRun?.(runId) ?? false);
+      res.writeHead(acknowledged ? 204 : 404, commonHeaders).end();
       return;
     }
     const assetMatch = path?.match(/^\/assets\/([a-zA-Z0-9_-]{1,32})\/spritesheet\.webp$/);
