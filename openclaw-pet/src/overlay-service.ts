@@ -180,6 +180,7 @@ export function toOverlayState(snapshot: DisplaySnapshot, petSize: number, windo
         changedAt: state.changedAt,
         activityLabel: state.activityLabel,
         activity: state.activity.map(({ id: activityId, label: activityLabel, tone }) => ({ id: activityId, label: activityLabel, tone })),
+        runs: state.runs,
       },
     })),
   };

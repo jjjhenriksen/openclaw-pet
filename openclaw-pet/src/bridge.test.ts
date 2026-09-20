@@ -14,6 +14,7 @@ const privateSnapshot: PetSnapshot = {
   activity: [{ id: 7, label: "Running safe-tool", tone: "active", at: 1200 }],
   lastError: "private controller error",
   message: "private controller message",
+  runs: [],
 };
 
 describe("pet bridge privacy contract", () => {
@@ -26,6 +27,7 @@ describe("pet bridge privacy contract", () => {
         changedAt: 1234,
         activityLabel: "Running safe-tool",
         activity: [{ id: 7, label: "Running safe-tool", tone: "active" }],
+        runs: [],
       },
     });
     const wire = JSON.stringify(bridge);
@@ -46,6 +48,21 @@ describe("pet bridge privacy contract", () => {
       ...valid,
       state: { ...valid.state, activityLabel: "x".repeat(141) },
     })).toBeUndefined();
+  });
+
+  it("exposes only opaque run metadata and rejects raw identifiers", () => {
+    const bridge = toBridgeSnapshot({ ...privateSnapshot, runs: [{
+      id: "run_0123456789abcdef0123",
+      session: { kind: "cron", displayName: "Nightly Research", agentId: "main" },
+      state: "tool", toolName: "web_search", startedAt: 1000, updatedAt: 1200,
+      attention: false, unread: false,
+    }] });
+    expect(bridge.state.runs).toEqual([expect.objectContaining({
+      id: "run_0123456789abcdef0123", session: { kind: "cron", displayName: "Nightly Research", agentId: "main" },
+      state: "tool", toolName: "web_search", startedAt: 1000, updatedAt: 1200,
+    })]);
+    expect(JSON.stringify(bridge)).not.toContain("agent:main:cron");
+    expect(parseBridgeSnapshot({ ...bridge, state: { ...bridge.state, runs: [{ ...bridge.state.runs[0], id: "agent:main:cron:secret" }] } })).toBeUndefined();
   });
 
   it("normalizes control characters in outgoing display labels", () => {
