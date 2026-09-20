@@ -116,6 +116,25 @@ describe("plugin bridge registration", () => {
     expect(wire).toContain("Agent is replying");
   });
 
+  it("publishes opaque per-run session and tool metadata", async () => {
+    const registered = registerPlugin();
+    const subscription = registered.getAgentEventSubscription();
+    await subscription.handle({ runId: "raw-run-secret", sessionKey: "agent:main:cron:private-job:run:private-run", stream: "lifecycle", data: { phase: "start" } });
+    await subscription.handle({ runId: "raw-run-secret", sessionKey: "agent:main:cron:private-job:run:private-run", stream: "tool", data: { phase: "start", toolName: "web_search", args: { query: "secret" } } });
+    const bridge = registered.gatewayMethods.get(BRIDGE_SNAPSHOT_METHOD);
+    let payload: any;
+    await bridge?.handler({ respond: (_ok: boolean, nextPayload: unknown) => { payload = nextPayload; } });
+    expect(payload.state.runs).toEqual([expect.objectContaining({
+      id: expect.stringMatching(/^run_[a-f0-9]{20}$/),
+      session: { kind: "cron", displayName: "Release Planning", agentId: "main" },
+      state: "tool", toolName: "web_search", attention: false, unread: false,
+    })]);
+    const wire = JSON.stringify(payload);
+    expect(wire).not.toContain("raw-run-secret");
+    expect(wire).not.toContain("private-job");
+    expect(wire).not.toContain("secret");
+  });
+
   it("looks up a session display name without requesting transcript content", async () => {
     const registered = registerPlugin();
     await registered.getAgentEventSubscription().handle({

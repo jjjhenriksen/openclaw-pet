@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 
 export const ANIMATIONS = {
   idle: { row: 0, frames: 6, durations: [280, 110, 110, 140, 140, 320] },
@@ -62,7 +63,27 @@ export type PetConfig = {
   };
 };
 export type ActivityItem = { id: number; label: string; tone: "active" | "success" | "error" | "neutral"; at: number };
-export type PetSnapshot = { valid: boolean; assetDir?: string; animation: Animation; changedAt: number; activeRuns: number; activityCount: number; lastEvent: string; activityLabel: string; activity: ActivityItem[]; lastError?: string; message: string };
+export type RunLifecycleState = "starting" | "thinking" | "tool" | "finishing" | "completed" | "failed";
+export type RunSession = { kind: "cron" | "session"; displayName?: string; agentId?: string };
+export type RunActivity = {
+  id: string;
+  session?: RunSession;
+  state: RunLifecycleState;
+  toolName?: string;
+  startedAt: number;
+  updatedAt: number;
+  attention: boolean;
+  unread: boolean;
+};
+export type RunActivityUpdate = {
+  runId: string;
+  session?: RunSession;
+  state: RunLifecycleState;
+  toolName?: string;
+  attention?: boolean;
+  unread?: boolean;
+};
+export type PetSnapshot = { valid: boolean; assetDir?: string; animation: Animation; changedAt: number; activeRuns: number; activityCount: number; lastEvent: string; activityLabel: string; activity: ActivityItem[]; runs?: RunActivity[]; lastError?: string; message: string };
 
 function webpDimensions(buffer: Buffer): { width: number; height: number } | null {
   if (buffer.subarray(0, 4).toString() !== "RIFF" || buffer.subarray(8, 12).toString() !== "WEBP") return null;
@@ -93,6 +114,25 @@ export function createPetController(config: PetConfig = {}) {
   let lastEvent = "startup";
   let activityLabel = "Ready";
   let activity: ActivityItem[] = [{ id: 0, label: "Ready", tone: "neutral", at: Date.now() }];
+  const runs = new Map<string, RunActivity>();
+  const opaqueRunId = (runId: string) => `run_${createHash("sha256").update(runId).digest("hex").slice(0, 20)}`;
+  const updateRunActivity = (update: RunActivityUpdate) => {
+    const now = Date.now();
+    const previous = runs.get(update.runId);
+    const next: RunActivity = {
+      id: previous?.id ?? opaqueRunId(update.runId),
+      ...(update.session ? { session: update.session } : previous?.session ? { session: previous.session } : {}),
+      state: update.state,
+      ...(update.toolName ? { toolName: update.toolName } : {}),
+      startedAt: previous?.startedAt ?? now,
+      updatedAt: now,
+      attention: update.attention ?? previous?.attention ?? false,
+      unread: update.unread ?? previous?.unread ?? false,
+    };
+    runs.delete(update.runId);
+    runs.set(update.runId, next);
+    while (runs.size > 16) runs.delete(runs.keys().next().value!);
+  };
   let idleTimer: NodeJS.Timeout | undefined;
   const set = (next: Animation, event = lastEvent, label = activityLabel) => { animation = next; changedAt = Date.now(); lastEvent = event; activityLabel = label; };
   const record = (label: string, tone: ActivityItem["tone"]) => { activity = [{ id: Date.now(), label, tone, at: Date.now() }, ...activity].slice(0, 6); };
@@ -104,9 +144,10 @@ export function createPetController(config: PetConfig = {}) {
   };
   return {
     initialize: () => (validation = validateAssets(config.assetDir, config.creature)),
-    snapshot: (): PetSnapshot => ({ ...validation, animation, changedAt, activeRuns, activityCount, lastEvent, activityLabel, activity, message: validation.valid ? `Pet is ${animation}; last event: ${lastEvent}.` : validation.message }),
+    snapshot: (): PetSnapshot => ({ ...validation, animation, changedAt, activeRuns, activityCount, lastEvent, activityLabel, activity, runs: [...runs.values()], message: validation.valid ? `Pet is ${animation}; last event: ${lastEvent}.` : validation.message }),
     statusText: () => { const s = validation.valid ? { ...validation, animation, activeRuns, activityCount, lastEvent } : validation; return s.valid ? `Pet: ${animation}; activity: ${activityLabel}; last event: ${lastEvent}; activity count: ${activityCount}.` : s.message; },
-    reset: () => { activeRuns = 0; clearTimeout(idleTimer); set("idle", "manual-reset", "Ready"); record("Reset to ready", "neutral"); return { ...validation, animation, changedAt, activeRuns, activityCount, lastEvent, activityLabel, activity, message: "Pet reset to idle." }; },
+    updateRunActivity,
+    reset: () => { activeRuns = 0; clearTimeout(idleTimer); set("idle", "manual-reset", "Ready"); record("Reset to ready", "neutral"); return { ...validation, animation, changedAt, activeRuns, activityCount, lastEvent, activityLabel, activity, runs: [...runs.values()], message: "Pet reset to idle." }; },
     modelStarted: (label = "Thinking") => { activityCount += 1; activeRuns += 1; clearTimeout(idleTimer); set("review", "model-started", label); record(label, "active"); },
     toolStarted: (toolName?: string, displayLabel?: string) => { activityCount += 1; clearTimeout(idleTimer); const label = displayLabel ?? (toolName ? `Running ${toolName}` : "Running tool"); set("running", "tool-started", label); record(label, "active"); },
     progress: (label: string) => { activityCount += 1; clearTimeout(idleTimer); set("review", "progress", label); record(label, "active"); },

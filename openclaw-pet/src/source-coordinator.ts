@@ -1,4 +1,4 @@
-import { parseBridgeSnapshot, toSanitizedPetState, type PetBridgeSnapshot, type SanitizedPetState } from "./bridge.js";
+import { parseBridgeSnapshot, PET_BRIDGE_VERSION, toSanitizedPetState, type PetBridgeSnapshot, type SanitizedPetState } from "./bridge.js";
 import { validateAssets, type CreatureKind, type LobsterSettings, type PetConfig, type PetSnapshot, type PetSourceConfig } from "./pet-controller.js";
 import { isCreatureKind } from "./creatures.js";
 
@@ -65,6 +65,7 @@ const idleState: SanitizedPetState = {
   changedAt: 0,
   activityLabel: "Waiting for source",
   activity: [],
+  runs: [],
 };
 
 function normalizeSourceId(value: string): string | undefined {
@@ -205,7 +206,7 @@ export class SourceCoordinator {
       if (!source.gateway) continue;
       this.remote.set(source.id, {
         available: false,
-        snapshot: { version: 1, state: { ...idleState } },
+        snapshot: { version: PET_BRIDGE_VERSION, state: { ...idleState } },
         warned: false,
       });
     }
