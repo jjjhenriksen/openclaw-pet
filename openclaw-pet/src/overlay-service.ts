@@ -215,6 +215,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
     #head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;letter-spacing:.01em}
     #summary{display:block;margin-top:2px;color:#aeb5bf;font-size:10px;font-weight:500}
     button{border:0;background:transparent;color:#b9c5ff;font:inherit;padding:0;cursor:pointer}
+    button:focus-visible{outline:2px solid #b9c5ff;outline-offset:3px;border-radius:3px}
     ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:5px;overflow:auto;max-height:176px}
     .item{display:grid;grid-template-columns:6px minmax(0,1fr) auto;column-gap:7px;font-size:11px;line-height:14px;align-items:start}
     .item[data-openable="true"]{cursor:pointer;border-radius:6px;padding:2px;margin:-2px}.item[data-openable="true"]:hover,.item[data-openable="true"]:focus-visible{background:rgba(185,197,255,.14);outline:none}
@@ -232,10 +233,10 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
   </style>
 </head>
 <body>
-  <section id="activity" aria-live="polite">
+  <section id="activity" role="region" aria-label="OpenClaw pet activity" aria-live="polite" aria-atomic="false">
     <div id="head"><span>OpenClaw activity</span><button id="toggle" aria-expanded="true">Hide</button></div>
     <span id="summary">Watching your active sessions</span>
-    <ul id="events"></ul>
+    <ul id="events" aria-label="Recent activity"></ul>
   </section>
   <div id="pets"></div>
   <script>
