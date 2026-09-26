@@ -50,8 +50,9 @@ export function createPetEventHandler(params: {
     const context = discovered ?? contexts.get(event.runId);
     const phase = String(event.data.phase ?? event.data.status ?? event.data.type ?? "").toLowerCase();
     const toolName = event.stream === "tool" ? safeToolName(event.data) : undefined;
+    const toolFailed = phase.includes("fail") || phase.includes("error") || event.data.isError === true;
     const runState: RunLifecycleState = event.stream === "tool"
-      ? (phase.includes("fail") || phase.includes("error") || phase.includes("end") || phase.includes("result") || phase.includes("complete") ? (phase.includes("fail") || phase.includes("error") ? "failed" : "thinking") : "tool")
+      ? (toolFailed ? "failed" : phase.includes("end") || phase.includes("result") || phase.includes("complete") ? "thinking" : "tool")
       : phase === "finishing" ? "finishing"
         : phase.includes("error") || phase.includes("fail") || event.data.aborted === true ? "failed"
           : phase.includes("end") || phase.includes("complete") || phase.includes("finish") ? "completed"
@@ -70,7 +71,7 @@ export function createPetEventHandler(params: {
     } else if (event.stream === "acp" || event.stream === "item" || event.stream === "command_output" || event.stream === "patch") {
       params.pet.progress(contextLabel(context, "Working"));
     } else if (event.stream === "tool") {
-      if (phase.includes("fail") || phase.includes("error")) {
+      if (toolFailed) {
         params.pet.toolFinished(true, contextLabel(context, "Tool failed"));
       } else if (phase.includes("end") || phase.includes("result") || phase.includes("complete")) {
         params.pet.toolFinished(false, contextLabel(context, "Tool complete"));
