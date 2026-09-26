@@ -100,6 +100,14 @@ web.layer?.contentsScale = NSScreen.main?.backingScaleFactor ?? 1.0
 web.autoresizingMask = [.width, .height]
 var dragSurface: DragSurface?
 var petsHidden = false
+var currentSize = size
+var currentSourceCount = sourceCount
+func updateDragSurfaceLayout() {
+  let dimensions = overlayDimensions(size: currentSize, sourceCount: currentSourceCount)
+  dragSurface?.frame = petsHidden
+    ? NSRect(x: 0, y: CGFloat(currentSize), width: max(1, dimensions.width - dragButtonReserve), height: activityHeight)
+    : NSRect(x: dimensions.width - CGFloat(currentSize * currentSourceCount), y: 0, width: CGFloat(currentSize * currentSourceCount), height: CGFloat(max(1, currentSize - 38)))
+}
 let openRun: (String) -> Void = { id in
   guard let endpoint = URL(string: "http://127.0.0.1:\(port)/open-run?id=\(id.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? id)") else { return }
   URLSession.shared.dataTask(with: endpoint) { data, response, _ in
@@ -119,14 +127,12 @@ let navigationDelegate = OverlayNavigationDelegate(port: port, resize: { nextSiz
   let nextX = (corner.contains("left") ? frame.minX + edge : frame.maxX - nextWidth - edge) + CGFloat(nextOffsetX)
   let nextY = (corner.contains("top") ? frame.maxY - nextHeight - edge : frame.minY + edge) + CGFloat(nextOffsetY)
   panel.setFrame(NSRect(x: nextX, y: nextY, width: nextWidth, height: nextHeight), display: true)
-  dragSurface?.frame = petsHidden
-    ? NSRect(x: 0, y: CGFloat(nextSize), width: max(1, nextWidth - dragButtonReserve), height: activityHeight)
-    : NSRect(x: nextWidth - CGFloat(nextSize * nextCount), y: 0, width: CGFloat(nextSize * nextCount), height: CGFloat(max(1, nextSize - 38)))
+  currentSize = nextSize
+  currentSourceCount = nextCount
+  updateDragSurfaceLayout()
 }, setPetsHidden: { hidden in
   petsHidden = hidden
-  dragSurface?.frame = hidden
-    ? NSRect(x: 0, y: CGFloat(size), width: max(1, panelWidth - dragButtonReserve), height: activityHeight)
-    : NSRect(x: panelWidth - CGFloat(size * sourceCount), y: 0, width: CGFloat(size * sourceCount), height: CGFloat(max(1, size - 38)))
+  updateDragSurfaceLayout()
 }, openRun: openRun)
 web.navigationDelegate = navigationDelegate
 web.load(URLRequest(url: URL(string: "http://127.0.0.1:\(port)/")!))

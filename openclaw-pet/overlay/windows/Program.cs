@@ -101,11 +101,15 @@ internal sealed class OverlayWindow : Window
     private readonly Uri origin;
     private readonly Border? dragSurface;
     private bool petsHidden;
+    private int currentSize;
+    private int currentSourceCount;
     private static readonly HttpClient Http = new();
 
     internal OverlayWindow(OverlayArguments options)
     {
         this.options = options;
+        currentSize = options.Size;
+        currentSourceCount = options.SourceCount;
         origin = new Uri($"http://127.0.0.1:{options.Port}/");
 
         Title = "OpenClaw Pet";
@@ -134,7 +138,7 @@ internal sealed class OverlayWindow : Window
         if (!options.ClickThrough)
         {
             dragSurface = new Border { Background = Brushes.Transparent, Cursor = Cursors.SizeAll };
-            UpdateDragSurfaceLayout(options.Size, options.SourceCount);
+            UpdateDragSurfaceLayout(currentSize, currentSourceCount);
             dragSurface.MouseLeftButtonDown += BeginWindowDrag;
             root.Children.Add(dragSurface);
         }
@@ -250,7 +254,7 @@ internal sealed class OverlayWindow : Window
                     Dispatcher.BeginInvoke(() =>
                     {
                         petsHidden = hidden;
-                        UpdateDragSurfaceLayout(options.Size, options.SourceCount);
+                        UpdateDragSurfaceLayout(currentSize, currentSourceCount);
                     });
                     return;
                 }
@@ -324,6 +328,8 @@ internal sealed class OverlayWindow : Window
 
     private void ApplyRuntimeLayout(int size, int sourceCount, int offsetX, int offsetY)
     {
+        currentSize = size;
+        currentSourceCount = sourceCount;
         Width = LayoutWidth(size, sourceCount);
         Height = LayoutHeight(size);
         PositionInCorner(offsetX, offsetY);
@@ -356,7 +362,7 @@ internal sealed class OverlayWindow : Window
         return options.ShowStatus ? Math.Max(petWidth, 320) : petWidth;
     }
 
-    private double LayoutHeight(int size) => options.ShowStatus ? size + 128 : size;
+    private double LayoutHeight(int size) => options.ShowStatus ? size + ActivityHeight : size;
 
     private void PositionInCorner(int offsetX, int offsetY)
     {
