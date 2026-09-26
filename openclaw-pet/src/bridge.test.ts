@@ -75,3 +75,15 @@ describe("pet bridge privacy contract", () => {
     expect(bridge.state.activity[0]?.label).toBe("Tool complete");
   });
 });
+
+it("normalizes incoming session names and detaches parsed runs from input", () => {
+  const raw = toBridgeSnapshot({ ...privateSnapshot, runs: [{
+    id: "run_0123456789abcdef0123", session: { kind: "session", displayName: "Research", agentId: "main" },
+    state: "thinking", startedAt: 1, updatedAt: 2, attention: false, unread: false,
+  }] });
+  raw.state.runs[0].session!.displayName = "  Research\u0000\n Plan  ";
+  const parsed = parseBridgeSnapshot(raw)!;
+  expect(parsed.state.runs[0].session!.displayName).toBe("Research Plan");
+  raw.state.runs[0].session!.displayName = "changed after validation";
+  expect(parsed.state.runs[0].session!.displayName).toBe("Research Plan");
+});
