@@ -60,6 +60,7 @@ type RemoteRuntimeState = {
   snapshot: PetBridgeSnapshot;
   timer?: NodeJS.Timeout;
   warned: boolean;
+  requestId: number;
 };
 
 const idleState: SanitizedPetState = {
@@ -210,6 +211,7 @@ export class SourceCoordinator {
         available: false,
         snapshot: { version: PET_BRIDGE_VERSION, state: { ...idleState } },
         warned: false,
+        requestId: 0,
       });
     }
   }
@@ -260,6 +262,9 @@ export class SourceCoordinator {
     if (!source?.gateway) return false;
     const runtime = this.remote.get(source.id);
     if (!runtime) return false;
+    const generation = this.generation;
+    const requestId = ++runtime.requestId;
+    const isCurrent = () => generation === this.generation && requestId === runtime.requestId;
     try {
       const token = source.gateway.tokenEnv ? this.env[source.gateway.tokenEnv] : undefined;
       const raw = await this.fetchRemote({
@@ -267,6 +272,7 @@ export class SourceCoordinator {
         token,
         timeoutMs: Math.max(250, Math.min(30_000, source.gateway.timeoutMs ?? DEFAULT_REMOTE_TIMEOUT_MS)),
       });
+      if (!isCurrent()) return false;
       const snapshot = parseBridgeSnapshot(raw);
       if (!snapshot) throw new Error("invalid bridge snapshot");
       runtime.snapshot = snapshot;
@@ -275,6 +281,7 @@ export class SourceCoordinator {
       runtime.warned = false;
       return true;
     } catch {
+      if (!isCurrent()) return false;
       runtime.available = false;
       if (!runtime.warned) this.logger.warn(`OpenClaw Pet source ${source.id} is unavailable.`);
       runtime.warned = true;

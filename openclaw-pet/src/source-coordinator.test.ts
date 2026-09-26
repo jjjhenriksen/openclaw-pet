@@ -245,3 +245,25 @@ describe("pull-based remote sources", () => {
     expect(warn).toHaveBeenCalledWith("OpenClaw Pet source remote is unavailable.");
   });
 });
+
+describe("remote polling lifecycle", () => {
+  it.each([false, true])("ignores obsolete responses after restart (reject=%s)", async (rejectOld) => {
+    let resolveOld!: (value: unknown) => void;
+    let failOld!: (error: Error) => void;
+    const old = new Promise((resolve, reject) => { resolveOld = resolve; failOld = reject; });
+    const fetchRemote = vi.fn().mockReturnValueOnce(old).mockResolvedValue(toBridgeSnapshot({ ...localSnapshot, changedAt: 500 }));
+    const warn = vi.fn();
+    const coordinator = new SourceCoordinator({ config, getLocalSnapshot: () => localSnapshot, logger: { warn }, fetchRemote, validateAssetDir: () => true });
+    coordinator.start();
+    coordinator.stop();
+    coordinator.start();
+    await Promise.resolve();
+    if (rejectOld) failOld(new Error("obsolete failure"));
+    else resolveOld(toBridgeSnapshot(localSnapshot));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(coordinator.snapshot().sources[1]).toMatchObject({ available: true, state: { changedAt: 500 } });
+    expect(warn).not.toHaveBeenCalled();
+    coordinator.stop();
+  });
+});
