@@ -69,7 +69,21 @@ function parseRun(value: unknown): SanitizedRunActivity | undefined {
     if (value.session.displayName !== undefined && (!safeLabel(value.session.displayName) || safeLabel(value.session.displayName)!.length > 80)) return undefined;
     if (value.session.agentId !== undefined && (typeof value.session.agentId !== "string" || !/^[a-zA-Z0-9_-]{1,64}$/.test(value.session.agentId))) return undefined;
   }
-  return value as SanitizedRunActivity;
+  const run = value as SanitizedRunActivity;
+  return {
+    id: run.id,
+    state: run.state,
+    startedAt: run.startedAt,
+    updatedAt: run.updatedAt,
+    attention: run.attention,
+    unread: run.unread,
+    ...(run.toolName !== undefined ? { toolName: run.toolName } : {}),
+    ...(run.session ? { session: {
+      kind: run.session.kind,
+      ...(run.session.displayName !== undefined ? { displayName: safeLabel(run.session.displayName)! } : {}),
+      ...(run.session.agentId !== undefined ? { agentId: run.session.agentId } : {}),
+    } } : {}),
+  };
 }
 
 function parseRuns(value: unknown): SanitizedRunActivity[] | undefined {
