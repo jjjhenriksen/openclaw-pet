@@ -52,3 +52,12 @@ describe("pet agent event visibility", () => {
     expect(pet.progress).toHaveBeenCalledWith("Session \"Release Planning\" · agent main · Agent is replying");
   });
 });
+
+it("marks SDK result events with isError as failed without exposing result content", async () => {
+  const pet = { modelStarted: vi.fn(), progress: vi.fn(), toolStarted: vi.fn(), toolFinished: vi.fn(), agentEnded: vi.fn(), updateRunActivity: vi.fn() };
+  const handle = createPetEventHandler({ pet, logger: { warn: vi.fn() } });
+  await handle({ runId: "r", stream: "tool", data: { phase: "result", name: "exec", isError: true, result: "private output" } });
+  expect(pet.toolFinished).toHaveBeenCalledWith(true, "Tool failed");
+  expect(pet.updateRunActivity).toHaveBeenCalledWith(expect.objectContaining({ state: "failed", attention: true, unread: true }));
+  expect(JSON.stringify(pet.updateRunActivity.mock.calls)).not.toContain("private output");
+});
