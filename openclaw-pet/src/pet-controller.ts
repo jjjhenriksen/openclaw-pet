@@ -100,7 +100,9 @@ export function validateAssets(assetDir?: string, creature?: CreatureKind): Pick
   const manifest = join(assetDir, "pet.json"), sheet = join(assetDir, "spritesheet.webp");
   if (!existsSync(manifest) || !existsSync(sheet)) return { valid: false, lastError: "missing required pet files", message: "Pet disabled: pet.json and spritesheet.webp are required." };
   try { JSON.parse(readFileSync(manifest, "utf8")); } catch { return { valid: false, lastError: "invalid pet.json", message: "Pet disabled: pet.json is not valid JSON." }; }
-  const dimensions = webpDimensions(readFileSync(sheet));
+  let dimensions: { width: number; height: number } | null;
+  try { dimensions = webpDimensions(readFileSync(sheet)); }
+  catch { return { valid: false, lastError: "unreadable sprite atlas", message: "Pet disabled: spritesheet.webp could not be read." }; }
   if (!dimensions || dimensions.width !== 1536 || dimensions.height < 1872 || dimensions.height % 208 !== 0) return { valid: false, lastError: "invalid sprite atlas dimensions", message: "Pet disabled: spritesheet.webp must be 1536 pixels wide with 208-pixel animation rows." };
   return { valid: true, assetDir, message: "Pet is ready." };
 }

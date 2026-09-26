@@ -1,4 +1,4 @@
-import { isCreatureKind } from "./creatures.js";
+import { isCreatureKind, LOBSTER_FLAVORS } from "./creatures.js";
 import { normalizeOverlaySize } from "./overlay-service.js";
 import { validateAssets, type CreatureKind, type LobsterFlavor, type PetConfig } from "./pet-controller.js";
 
@@ -26,12 +26,20 @@ export function setupHelp(): string {
     `  Built-in creatures: ${CREATURE_CHOICES.join(", ")}`,
     "  /pet setup <creature> [size=224] [corner=bottom-right] [showStatus=true] [clickThrough=false] [flavor=crimson]",
     "  /pet setup custom <absolute-asset-dir> [size=224] [corner=bottom-right]",
+    "  Quote custom asset paths containing spaces.",
     "Paste the generated JSON under plugins.entries.openclaw-pet.config, then restart the Gateway.",
   ].join("\n");
 }
 
 export function parseSetupArgs(args: string): { ok: true; options: SetupOptions } | { ok: false; message: string } {
-  const tokens = args.trim().split(/\s+/).filter(Boolean);
+  const tokens: string[] = [];
+  let remaining = args.trim();
+  while (remaining) {
+    const match = /^(?:"([^"]*)"|'([^']*)'|([^\s"']+))(?:\s+|$)/.exec(remaining);
+    if (!match) return { ok: false, message: "Use matching quotes around paths containing spaces." };
+    tokens.push(match[1] ?? match[2] ?? match[3]);
+    remaining = remaining.slice(match[0].length);
+  }
   if (tokens.length === 0) return { ok: false, message: setupHelp() };
   const mode = tokens.shift()!;
   let creature: CreatureKind;
@@ -54,7 +62,7 @@ export function parseSetupArgs(args: string): { ok: true; options: SetupOptions 
     if (separator < 1) return { ok: false, message: `Expected option=value, got "${token}".` };
     const key = token.slice(0, separator);
     const value = token.slice(separator + 1);
-    if (!(key in values) || !value) return { ok: false, message: `Unknown setup option "${key}".` };
+    if (!Object.hasOwn(values, key) || !value) return { ok: false, message: `Unknown setup option "${key}".` };
     values[key] = value;
   }
   const size = normalizeOverlaySize(values.size);
@@ -62,6 +70,7 @@ export function parseSetupArgs(args: string): { ok: true; options: SetupOptions 
   if (!CORNERS.has(values.corner)) return { ok: false, message: "corner must be bottom-right, bottom-left, top-right, or top-left." };
   if (!BOOLEAN_VALUES.has(values.showStatus) || !BOOLEAN_VALUES.has(values.clickThrough)) return { ok: false, message: "showStatus and clickThrough must be true or false." };
   if (creature !== "lobster" && values.flavor !== "crimson") return { ok: false, message: "flavor is only available for the lobster creature." };
+  if (!LOBSTER_FLAVORS.includes(values.flavor as LobsterFlavor)) return { ok: false, message: `Unknown lobster flavor "${values.flavor}".` };
   const options: SetupOptions = {
     creature, assetDir, size, corner: values.corner as SetupOptions["corner"],
     showStatus: values.showStatus === "true", clickThrough: values.clickThrough === "true",
