@@ -264,7 +264,15 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
       const item=source.state.activity&&source.state.activity[0];
       return item?item.tone:"neutral";
     }
+    let activityKey="";
     function renderActivity(sources){
+      const nextActivityKey=JSON.stringify((sources||[]).map(source=>[source.id,source.label,source.available,source.openable,source.state.runs,source.state.activity?.[0]?.tone]));
+      if(nextActivityKey===activityKey)return;
+      activityKey=nextActivityKey;
+      const focused=document.activeElement;
+      const focusedRow=focused?.closest("li[data-run-key]");
+      const focusedKey=focusedRow?.dataset.runKey;
+      const focusedRead=focused?.classList.contains("ack");
       const items=[];
       for(const source of sources||[]){
         if(!source.available){items.push({source,run:null});continue;}
@@ -272,9 +280,9 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
       }
       items.sort((a,b)=>{const rankA=a.run?stateRank(a.run):4,rankB=b.run?stateRank(b.run):4;return rankA-rankB||(b.run?.updatedAt||0)-(a.run?.updatedAt||0)});
       const visible=items.slice(0,8);
-      const attention=visible.filter(item=>item.run?.attention).length;
-      const active=visible.filter(item=>item.run&&["starting","thinking","tool","finishing"].includes(item.run.state)).length;
-      const unread=visible.filter(item=>item.run?.unread&&!item.run?.attention).length;
+      const attention=items.filter(item=>item.run?.attention).length;
+      const active=items.filter(item=>item.run&&["starting","thinking","tool","finishing"].includes(item.run.state)).length;
+      const unread=items.filter(item=>item.run?.unread&&!item.run?.attention).length;
       document.querySelector("#summary").textContent=attention?attention+" waiting on you":active?"Watching "+active+" active session"+(active===1?"":"s"):unread?unread+" ready to review":"No active sessions";
       events.replaceChildren(...(visible.length?visible.map(({source,run})=>{
         const row=document.createElement("li");
@@ -284,6 +292,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
         const name=document.createElement("span"); name.className="name";
         const status=document.createElement("span"); status.className="status";
         if(!run){name.textContent=source.label;status.textContent="Source unavailable";copy.append(name,status);row.append(dot,copy);return row;}
+        row.dataset.runKey=source.id+":"+run.id;
         const session=run.session?.displayName||(run.session?.kind==="cron"?"Scheduled task":"Unnamed conversation");
         name.textContent=(showSourceLabel?source.label+" · ":"")+session+(run.session?.agentId?" · "+run.session.agentId:"");
         status.textContent=(run.toolName?run.toolName+" · ":"")+stateLabel(run);
@@ -291,9 +300,16 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
         const ack=document.createElement("button"); ack.className="ack"; ack.type="button"; ack.textContent=run.unread?"Mark read":""; ack.setAttribute("aria-label","Mark "+session+" read");
         ack.onclick=async(event)=>{event.stopPropagation();if(!run.unread)return;try{await fetch("/ack-run?id="+encodeURIComponent(run.id),{method:"POST"});}catch{}};
         const openable=Boolean(source.openable&&run.session?.agentId);
-        if(openable){row.dataset.openable="true";row.tabIndex=0;row.setAttribute("role","button");row.setAttribute("aria-label","Open "+session);const open=()=>{location.href="openclaw-pet://open-run?id="+encodeURIComponent(run.id)};row.onclick=open;row.onkeydown=(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();open()}};}
-        row.append(dot,copy,ack); return row;
+        if(openable){row.dataset.openable="true";row.tabIndex=0;row.setAttribute("role","button");row.setAttribute("aria-label","Open "+session);const open=()=>{location.href="openclaw-pet://open-run?id="+encodeURIComponent(run.id)};row.onclick=open;row.onkeydown=(event)=>{if(event.target===row&&(event.key==="Enter"||event.key===" ")){event.preventDefault();open()}};}
+        row.append(dot,copy);
+        if(source.openable&&run.unread)row.append(ack);
+        return row;
       }):[(()=>{const row=document.createElement("li");row.className="item";row.textContent="No active sessions";return row;})()]));
+      if(focusedKey){
+        const row=Array.from(events.children).find(node=>node.dataset.runKey===focusedKey);
+        const target=focusedRead?row?.querySelector(".ack")||row:row;
+        target?.focus({preventScroll:true});
+      }
     }
     function createRenderer(source){
       const root=document.createElement("div");

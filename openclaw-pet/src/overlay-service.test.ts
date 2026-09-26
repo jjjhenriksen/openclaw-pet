@@ -1,3 +1,4 @@
+import { runInNewContext } from "node:vm";
 import { EventEmitter } from "node:events";
 import type { IncomingMessage, RequestListener, ServerResponse } from "node:http";
 import { join } from "node:path";
@@ -613,4 +614,38 @@ describe("overlay privacy boundary", () => {
     });
     expect(JSON.stringify(state)).not.toContain("/private/pet-assets");
   });
+});
+
+it("keeps unchanged activity nodes and separates read-button keyboard events", async () => {
+  const { service, listeners } = harness();
+  await service.start(params());
+  let html = "";
+  listeners[0]({ url: "/" } as IncomingMessage, {
+    writeHead() { return this; }, end(body: string) { html = body; },
+  } as unknown as ServerResponse);
+  const element = () => ({
+    children: [] as any[], dataset: {} as Record<string, string>, textContent: "", tabIndex: -1,
+    setAttribute() {}, append(...nodes: any[]) { this.children.push(...nodes); },
+    replaceChildren(...nodes: any[]) { this.children = nodes; },
+  });
+  const nodes = new Map(["#events", "#pets", "#toggle", "#summary"].map((key) => [key, element()]));
+  const context: any = {
+    document: { querySelector: (key: string) => nodes.get(key), createElement: element },
+    fetch: () => new Promise(() => {}), setInterval() {}, requestAnimationFrame() {},
+    location: { href: "" },
+  };
+  runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)![1], context);
+  const sources = [{ ...snapshot.sources[0], state: { ...snapshot.sources[0].state, runs: [{
+    id: "run_aaaaaaaaaaaaaaaaaaaa", session: { kind: "session", agentId: "main" },
+    state: "completed", unread: true, updatedAt: 1,
+  }] } }];
+  context.renderActivity(sources);
+  const row: any = nodes.get("#events")!.children[0];
+  context.renderActivity(JSON.parse(JSON.stringify(sources)));
+  expect(nodes.get("#events")!.children[0]).toBe(row);
+  row.onkeydown({ key: "Enter", target: row.children[2], preventDefault() {} });
+  expect(context.location.href).toBe("");
+  row.onkeydown({ key: "Enter", target: row, preventDefault() {} });
+  expect(context.location.href).toContain("open-run");
+  await service.stop();
 });
