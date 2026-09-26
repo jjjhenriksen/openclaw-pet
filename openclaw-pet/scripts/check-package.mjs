@@ -7,6 +7,10 @@ const [packed] = JSON.parse(execFileSync(process.execPath, [process.env.npm_exec
 const files = new Set(packed.files.map(({ path }) => path));
 const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
 assert.deepEqual(manifest.openclaw.extensions, ['./dist/index.js']);
+const sdkVersion = manifest.devDependencies.openclaw;
+assert.equal(manifest.peerDependencies.openclaw, sdkVersion, 'Peer and development SDK pins differ');
+assert.equal(manifest.openclaw.build.openclawVersion, sdkVersion, 'Build metadata does not match the validated SDK');
+assert.equal(manifest.openclaw.compat.pluginApi, `>=${sdkVersion}`, 'Plugin API minimum does not match the validated SDK');
 for (const source of readdirSync('src').filter(name => name.endsWith('.ts') && !name.endsWith('.test.ts'))) {
   for (const suffix of ['.js', '.d.ts']) assert(files.has(`dist/${source.slice(0, -3)}${suffix}`), `Missing output for ${source}`);
 }
