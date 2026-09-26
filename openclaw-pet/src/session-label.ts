@@ -1,3 +1,4 @@
+import { createLabelCache } from "./label-cache.js";
 const MAX_SESSION_LABEL_LENGTH = 80;
 
 export type SessionLabelLookup = (sessionKey: string) => Promise<unknown>;
@@ -18,22 +19,6 @@ export function getSessionDisplayName(entry: unknown): string | undefined {
 }
 
 /** Caches read-only session display-name lookups, including missing entries. */
-export function createSessionDisplayNameResolver(lookup: SessionLabelLookup): (sessionKey: string) => Promise<string | undefined> {
-  const labels = new Map<string, string | undefined>();
-  const pending = new Map<string, Promise<string | undefined>>();
-  return async (sessionKey) => {
-    if (labels.has(sessionKey)) return labels.get(sessionKey);
-    const existing = pending.get(sessionKey);
-    if (existing) return existing;
-    const request = lookup(sessionKey)
-      .then(getSessionDisplayName)
-      .catch(() => undefined)
-      .then((label) => {
-        labels.set(sessionKey, label);
-        pending.delete(sessionKey);
-        return label;
-      });
-    pending.set(sessionKey, request);
-    return request;
-  };
+export function createSessionDisplayNameResolver(lookup: SessionLabelLookup): (key: string) => Promise<string | undefined> {
+  return createLabelCache(lookup, getSessionDisplayName);
 }
