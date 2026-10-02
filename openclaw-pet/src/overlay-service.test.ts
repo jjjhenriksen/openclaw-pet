@@ -623,14 +623,19 @@ it("keeps unchanged activity nodes and separates read-button keyboard events", a
   listeners[0]({ url: "/" } as IncomingMessage, {
     writeHead() { return this; }, end(body: string) { html = body; },
   } as unknown as ServerResponse);
-  const element = () => ({
+  let focusedNode: unknown;
+  const element = (tagName = "div") => ({
+    tagName,
+    attributes: {} as Record<string, string>,
     children: [] as any[], dataset: {} as Record<string, string>, textContent: "", tabIndex: -1,
-    setAttribute() {}, append(...nodes: any[]) { this.children.push(...nodes); },
+    setAttribute(name: string, value: string) { this.attributes[name] = value; }, append(...nodes: any[]) { this.children.push(...nodes); },
     replaceChildren(...nodes: any[]) { this.children = nodes; },
+    querySelector(selector: string) { return this.children.find(node => node.className === selector.slice(1)); },
+    focus() { focusedNode = this; },
   });
   const nodes = new Map(["#events", "#pets", "#toggle", "#summary"].map((key) => [key, element()]));
   const context: any = {
-    document: { querySelector: (key: string) => nodes.get(key), createElement: element },
+    document: { querySelector: (key: string) => nodes.get(key), createElement: element, get activeElement() { return focusedNode; } },
     fetch: () => new Promise(() => {}), setInterval() {}, requestAnimationFrame() {},
     location: { href: "" },
   };
@@ -643,9 +648,28 @@ it("keeps unchanged activity nodes and separates read-button keyboard events", a
   const row: any = nodes.get("#events")!.children[0];
   context.renderActivity(JSON.parse(JSON.stringify(sources)));
   expect(nodes.get("#events")!.children[0]).toBe(row);
-  row.onkeydown({ key: "Enter", target: row.children[2], preventDefault() {} });
+  expect(row.tagName).toBe("li");
+  expect(row.attributes.role).toBeUndefined();
+  expect(row.tabIndex).toBe(-1);
+  const open = row.children[1];
+  const ack = row.children[2];
+  expect(open.tagName).toBe("button");
+  expect(open.attributes["aria-label"]).toBe("Open Unnamed conversation");
+  expect(ack.tagName).toBe("button");
+  expect(ack.attributes["aria-label"]).toBe("Mark Unnamed conversation read");
+  ack.onclick({ stopPropagation() {} });
   expect(context.location.href).toBe("");
-  row.onkeydown({ key: "Enter", target: row, preventDefault() {} });
+  open.onclick();
   expect(context.location.href).toContain("open-run");
+  ack.closest = () => row;
+  ack.classList = { contains: (name: string) => name === "ack" };
+  ack.focus();
+  const readSources = structuredClone(sources);
+  readSources[0].state.runs[0].unread = false;
+  readSources[0].state.runs[0].updatedAt = 2;
+  context.renderActivity(readSources);
+  const updatedRow = nodes.get("#events")!.children[0];
+  expect(updatedRow.children).toHaveLength(2);
+  expect(focusedNode).toBe(updatedRow.children[1]);
   await service.stop();
 });
