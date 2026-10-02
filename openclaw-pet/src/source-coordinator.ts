@@ -59,7 +59,7 @@ type RemoteRuntimeState = {
   available: boolean;
   snapshot: PetBridgeSnapshot;
   timer?: NodeJS.Timeout;
-  warned: boolean;
+  warningReason?: "configuration" | "connection";
   requestId: number;
 };
 
@@ -210,7 +210,6 @@ export class SourceCoordinator {
       this.remote.set(source.id, {
         available: false,
         snapshot: { version: PET_BRIDGE_VERSION, state: { ...idleState } },
-        warned: false,
         requestId: 0,
       });
     }
@@ -265,8 +264,16 @@ export class SourceCoordinator {
     const generation = this.generation;
     const requestId = ++runtime.requestId;
     const isCurrent = () => generation === this.generation && requestId === runtime.requestId;
+    const token = source.gateway.tokenEnv ? this.env[source.gateway.tokenEnv] : undefined;
+    if (source.gateway.tokenEnv && !token?.trim()) {
+      runtime.available = false;
+      if (runtime.warningReason !== "configuration") {
+        this.logger.warn(`OpenClaw Pet source ${source.id} has a missing or blank required token. Check the configured token environment variable.`);
+      }
+      runtime.warningReason = "configuration";
+      return false;
+    }
     try {
-      const token = source.gateway.tokenEnv ? this.env[source.gateway.tokenEnv] : undefined;
       const raw = await this.fetchRemote({
         url: source.gateway.url,
         token,
@@ -277,14 +284,14 @@ export class SourceCoordinator {
       if (!snapshot) throw new Error("invalid bridge snapshot");
       runtime.snapshot = snapshot;
       runtime.available = true;
-      if (runtime.warned) this.logger.info?.(`OpenClaw Pet source ${source.id} is available again.`);
-      runtime.warned = false;
+      if (runtime.warningReason) this.logger.info?.(`OpenClaw Pet source ${source.id} is available again.`);
+      runtime.warningReason = undefined;
       return true;
     } catch {
       if (!isCurrent()) return false;
       runtime.available = false;
-      if (!runtime.warned) this.logger.warn(`OpenClaw Pet source ${source.id} is unavailable.`);
-      runtime.warned = true;
+      if (runtime.warningReason !== "connection") this.logger.warn(`OpenClaw Pet source ${source.id} is unavailable.`);
+      runtime.warningReason = "connection";
       return false;
     }
   }
