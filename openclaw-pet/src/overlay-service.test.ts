@@ -708,6 +708,7 @@ it("renders static state poses without decorative frames and reacts to motion pr
     children: [] as unknown[], dataset: {} as Record<string, string>,
     style: { transform: "", setProperty() {} },
     classList: { toggle() {}, add() {} },
+    setAttribute() {},
     append(node: unknown) { this.children.push(node); },
   });
   const nodes = new Map(["#events", "#pets", "#toggle", "#summary"].map(key => [key, element()]));
@@ -720,7 +721,7 @@ it("renders static state poses without decorative frames and reacts to motion pr
   const context = {
     document: { querySelector: (key: string) => nodes.get(key), createElement: element, documentElement: element() },
     fetch: () => new Promise(() => {}), setInterval() {}, setTimeout() {},
-    Image: class {}, location: { href: "" }, matchMedia: () => media,
+    Image: class {}, AbortController, clearTimeout() {}, location: { href: "" }, matchMedia: () => media,
     performance: { now: () => 900 }, requestAnimationFrame, cancelAnimationFrame,
   };
   const script = html.match(/<script>([\s\S]*?)<\/script>/)![1];
@@ -741,4 +742,104 @@ it("renders static state poses without decorative frames and reacts to motion pr
   expect(root.dataset.animation).toBe("waiting");
   expect(frames.size).toBe(0);
   await service.stop();
+});
+
+describe("renderer artwork recovery", () => {
+  async function artworkHarness(creature?: string) {
+    const { service, listeners } = harness();
+    await service.start(params());
+    let html = "";
+    listeners[0]({ url: "/" } as IncomingMessage, {
+      writeHead() { return this; }, end(body: string) { html = body; },
+    } as unknown as ServerResponse);
+    const drawImage = vi.fn();
+    const element = (tagName = "div"): any => ({
+      tagName, children: [], dataset: {}, style: { transform: "", setProperty() {} },
+      classList: { toggle: vi.fn(), add: vi.fn() }, hidden: false, disabled: false,
+      setAttribute: vi.fn(), append(...nodes: any[]) { this.children.push(...nodes); },
+      replaceChildren(...nodes: any[]) { this.children = nodes; }, remove: vi.fn(),
+      getContext: () => ({ clearRect() {}, drawImage }), clientWidth: 224, clientHeight: 224,
+      set innerHTML(markup: string) { this.children = [{ tagName: markup.startsWith("<svg") ? "svg" : "html", classList: { add: vi.fn() } }]; },
+      get firstElementChild() { return this.children[0]; },
+    });
+    const nodes = new Map(["#events", "#pets", "#toggle", "#summary"].map(key => [key, element()]));
+    const requests: { resolve: (response: any) => void; reject: (error: Error) => void; options: any }[] = [];
+    const images: any[] = [];
+    const timers = new Map<number, () => void>();
+    let timerId = 0;
+    const context = {
+      document: { querySelector: (key: string) => nodes.get(key), createElement: element, documentElement: element() },
+      fetch: (url: string, options: any) => url === "/state" ? new Promise(() => {}) : new Promise((resolve, reject) => requests.push({ resolve, reject, options })),
+      Image: class { complete = true; naturalWidth = 1536; onload: any; onerror: any; src = ""; constructor() { images.push(this); } },
+      AbortController, setInterval() {}, setTimeout(callback: () => void) { const id = timerId++; timers.set(id, callback); return id; },
+      clearTimeout(id: number) { timers.delete(id); }, requestAnimationFrame() {}, location: { href: "" },
+      matchMedia: () => ({ matches: true, addEventListener() {} }), performance: { now: () => 900 },
+    };
+    runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)![1], context);
+    const source = { id: "local", label: "Local", creature, available: true, state: { animation: "running" } };
+    runInNewContext(`syncSources(${JSON.stringify([source])})`, context);
+    const root = nodes.get("#pets")!.children[0];
+    return { service, context, requests, images, timers, root, source, drawImage };
+  }
+
+  it.each(["svg", "image"])("recovers a failed %s request without changing source health", async kind => {
+    const h = await artworkHarness(kind === "svg" ? "crab" : undefined);
+    expect(h.root.dataset.assetState).toBe("loading");
+    if (kind === "svg") h.requests[0].resolve({ ok: false });
+    else h.images.at(-1).onerror();
+    await flush();
+    expect(h.root.dataset.assetState).toBe("error");
+    const notice = h.root.children[1];
+    expect(notice.children[0].textContent).toBe("Pet artwork unavailable.");
+    expect(notice.children[1].disabled).toBe(false);
+    expect(h.source.available).toBe(true);
+    expect(h.root.classList.toggle).toHaveBeenCalledWith("unavailable", false);
+    notice.children[1].onclick();
+    expect(h.root.dataset.assetState).toBe("loading");
+    expect(notice.children[1].disabled).toBe(true);
+    if (kind === "svg") {
+      expect(h.requests[0].options.signal.aborted).toBe(true);
+      h.requests[1].resolve({ ok: true, text: async () => "<svg></svg>" });
+    } else h.images.at(-1).onload();
+    await flush();
+    expect(h.root.dataset.assetState).toBe("ready");
+    expect(notice.hidden).toBe(true);
+    expect(h.timers.size).toBe(0);
+    if (kind === "svg") expect(h.root.children[0].firstElementChild.classList.add).toHaveBeenCalledWith("creature-svg");
+    else expect(h.drawImage).toHaveBeenCalledOnce();
+    await h.service.stop();
+  });
+
+  it.each(["svg", "image"])("bounds a stalled %s load and ignores its late completion after retry", async kind => {
+    const h = await artworkHarness(kind === "svg" ? "crab" : undefined);
+    const oldImageComplete = h.images.at(-1)?.onload;
+    h.timers.values().next().value!();
+    expect(h.root.dataset.assetState).toBe("error");
+    h.root.children[1].children[1].onclick();
+    if (kind === "svg") h.requests[0].resolve({ ok: true, text: async () => "<svg></svg>" });
+    else oldImageComplete();
+    await flush();
+    expect(h.root.dataset.assetState).toBe("loading");
+    if (kind === "svg") h.requests[1].resolve({ ok: true, text: async () => "<svg></svg>" });
+    else h.images.at(-1).onload();
+    await flush();
+    expect(h.root.dataset.assetState).toBe("ready");
+    await h.service.stop();
+  });
+
+  it("cancels removed artwork and rejects malformed SVG responses", async () => {
+    const h = await artworkHarness("crab");
+    h.requests[0].resolve({ ok: true, text: async () => "<html>Error</html>" });
+    await flush();
+    expect(h.root.dataset.assetState).toBe("error");
+    h.root.children[1].children[1].onclick();
+    runInNewContext("syncSources([])", h.context);
+    expect(h.requests[1].options.signal.aborted).toBe(true);
+    expect(h.timers.size).toBe(0);
+    h.requests[1].resolve({ ok: true, text: async () => "<svg></svg>" });
+    await flush();
+    expect(h.root.dataset.assetState).toBe("loading");
+    expect(h.root.remove).toHaveBeenCalledOnce();
+    await h.service.stop();
+  });
 });

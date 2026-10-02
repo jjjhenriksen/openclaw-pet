@@ -228,6 +228,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
     .pet-hidden #pets{display:none}
     #pets{position:absolute;right:0;bottom:${showStatus ? 8 : 0}px;display:flex;align-items:flex-end}
     .pet{position:relative;width:var(--pet-size);height:var(--pet-size);flex:0 0 auto}.pet.unavailable{opacity:.46}
+    .artwork{width:100%;height:100%}.asset-notice{position:absolute;inset:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:10px;box-sizing:border-box;border-radius:12px;background:rgba(27,29,31,.96);color:#f5f5f5;font-size:11px;text-align:center}.asset-notice[hidden]{display:none}.asset-retry{padding:6px 8px;border-radius:4px;background:rgba(185,197,255,.14)}.asset-retry:disabled{cursor:default;color:#aeb5bf}
     canvas{width:100%;height:100%;display:block;image-rendering:pixelated;pointer-events:none}
     svg.creature-svg{width:100%;height:100%;margin:0;display:block;overflow:visible;pointer-events:none;shape-rendering:geometricPrecision}
   </style>
@@ -329,32 +330,62 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
       root.className="pet";
       root.dataset.sourceId=source.id;
       pets.append(root);
-      const sheet=new Image();
+      const artwork=document.createElement("div");artwork.className="artwork";root.append(artwork);
+      const notice=document.createElement("div");notice.className="asset-notice";
+      const message=document.createElement("span");message.setAttribute("role","status");
+      const retry=document.createElement("button");retry.className="asset-retry";retry.type="button";retry.textContent="Retry artwork";retry.setAttribute("aria-label","Retry pet artwork for "+source.label);
+      notice.append(message,retry);root.append(notice);
       const creature=source.creature;
       // Built-in creatures are fetched as SVG text and attached directly to
       // the DOM. This keeps the geometry vector-rendered through WebKit.
       const canvas=creature?null:document.createElement("canvas");
-      if(canvas)root.append(canvas);
+      if(canvas)artwork.append(canvas);
       // The native WebView can retain image responses across plugin reloads;
       // version creature assets so a renderer refresh cannot show an older
       // silhouette after the Lobsterdex geometry changes.
-      const renderer={root,canvas,context:canvas?canvas.getContext("2d"):null,sheet,source,animation:"idle",frame:0,nextFrameAt:0,width:0,height:0,creature};
+      const renderer={root,artwork,notice,message,retry,canvas,context:canvas?canvas.getContext("2d"):null,sheet:null,source,animation:"idle",frame:0,nextFrameAt:0,width:0,height:0,creature,assetAttempt:0,assetTimer:undefined,assetController:undefined};
       renderers.set(source.id,renderer);
-      if(!creature){
-        sheet.onload=()=>{if(reducedMotion&&renderers.get(source.id)===renderer)draw(animationTime());};
-        sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp";
-      }
+      retry.onclick=()=>{if(root.dataset.assetState==="error")loadArtwork(renderer);};
+      loadArtwork(renderer);
+      return renderer;
+    }
+    function cancelArtwork(renderer){
+      if(renderer.assetTimer!==undefined){clearTimeout(renderer.assetTimer);renderer.assetTimer=undefined;}
+      renderer.assetController?.abort();renderer.assetController=undefined;
+      if(renderer.sheet){renderer.sheet.onload=null;renderer.sheet.onerror=null;renderer.sheet.src="";}
+    }
+    function loadArtwork(renderer){
+      cancelArtwork(renderer);
+      const attempt=++renderer.assetAttempt;
+      const {root,artwork,notice,message,retry,source,creature}=renderer;
+      root.dataset.assetState="loading";artwork.hidden=true;notice.hidden=false;
+      message.textContent="Loading pet artwork…";retry.disabled=true;
+      const current=()=>renderers.get(source.id)===renderer&&renderer.assetAttempt===attempt&&root.dataset.assetState==="loading";
+      const finish=(ready)=>{
+        if(!current())return;
+        if(renderer.assetTimer!==undefined){clearTimeout(renderer.assetTimer);renderer.assetTimer=undefined;}
+        root.dataset.assetState=ready?"ready":"error";artwork.hidden=!ready;notice.hidden=ready;retry.disabled=ready;
+        message.textContent=ready?"":"Pet artwork unavailable.";
+        if(!ready){renderer.assetController?.abort();if(renderer.sheet){renderer.sheet.onload=null;renderer.sheet.onerror=null;renderer.sheet.src="";}}
+        else if(reducedMotion)draw(animationTime());
+      };
+      renderer.assetTimer=setTimeout(()=>finish(false),10000);
       if(creature){
-        fetch("/creatures/"+encodeURIComponent(creature)+".svg?v=lobsterdex-20260913",{cache:"no-store"})
+        renderer.assetController=new AbortController();
+        fetch("/creatures/"+encodeURIComponent(creature)+".svg?v=lobsterdex-20260913"+(attempt>1?"&retry="+attempt:""),{cache:"no-store",signal:renderer.assetController.signal})
           .then(response=>response.ok?response.text():Promise.reject(new Error("creature unavailable")))
           .then(markup=>{
-            if(renderers.get(source.id)!==renderer)return;
-            root.innerHTML=markup;
-            const svg=root.firstElementChild;
-            if(svg)svg.classList.add("creature-svg");
-          }).catch(()=>{});
+            if(!current())return;
+            artwork.innerHTML=markup;
+            const svg=artwork.firstElementChild;
+            if(svg?.tagName.toLowerCase()!=="svg"){artwork.replaceChildren();finish(false);return;}
+            svg.classList.add("creature-svg");finish(true);
+          }).catch(()=>finish(false));
+      }else{
+        const sheet=renderer.sheet=new Image();
+        sheet.onload=()=>finish(Boolean(sheet.naturalWidth));sheet.onerror=()=>finish(false);
+        sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp"+(attempt>1?"?retry="+attempt:"");
       }
-      return renderer;
     }
     function syncSources(sources){
       const active=new Set();
@@ -366,6 +397,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
       }
       for(const [id,renderer] of renderers){
         if(active.has(id))continue;
+        renderer.assetAttempt++;cancelArtwork(renderer);
         renderer.root.remove();
         renderers.delete(id);
       }
@@ -409,7 +441,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
         if(renderer.animation!==animationName){renderer.animation=animationName;renderer.frame=0;renderer.nextFrameAt=time;}
         if(reducedMotion)renderer.frame=0;
         else if(time>=renderer.nextFrameAt){renderer.frame=(renderer.frame+1)%next.frames;renderer.nextFrameAt=time+next.durations[renderer.frame];}
-        if(!renderer.creature&&renderer.sheet.complete&&renderer.sheet.naturalWidth){
+        if(!renderer.creature&&renderer.root.dataset.assetState==="ready"&&renderer.sheet?.complete&&renderer.sheet.naturalWidth){
           const nextWidth=renderer.canvas.clientWidth,nextHeight=renderer.canvas.clientHeight;
           if(renderer.width!==nextWidth||renderer.height!==nextHeight){renderer.width=renderer.canvas.width=nextWidth;renderer.height=renderer.canvas.height=nextHeight;}
           renderer.context.clearRect(0,0,renderer.width,renderer.height);
