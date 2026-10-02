@@ -649,3 +649,49 @@ it("keeps unchanged activity nodes and separates read-button keyboard events", a
   expect(context.location.href).toContain("open-run");
   await service.stop();
 });
+
+it("renders static state poses without decorative frames and reacts to motion preference changes", async () => {
+  const { service, listeners } = harness();
+  await service.start(params());
+  let html = "";
+  listeners[0]({ url: "/" } as IncomingMessage, {
+    writeHead() { return this; }, end(body: string) { html = body; },
+  } as unknown as ServerResponse);
+  const element = () => ({
+    children: [] as unknown[], dataset: {} as Record<string, string>,
+    style: { transform: "", setProperty() {} },
+    classList: { toggle() {}, add() {} },
+    append(node: unknown) { this.children.push(node); },
+  });
+  const nodes = new Map(["#events", "#pets", "#toggle", "#summary"].map(key => [key, element()]));
+  let onMotionChange: (() => void) | undefined;
+  const media = { matches: true, addEventListener: (_event: string, listener: () => void) => { onMotionChange = listener; } };
+  const frames = new Map<number, unknown>();
+  let frameId = 0;
+  const requestAnimationFrame = vi.fn((callback: unknown) => { const id = frameId++; frames.set(id, callback); return id; });
+  const cancelAnimationFrame = vi.fn((id: number) => { frames.delete(id); });
+  const context = {
+    document: { querySelector: (key: string) => nodes.get(key), createElement: element, documentElement: element() },
+    fetch: () => new Promise(() => {}), setInterval() {}, setTimeout() {},
+    Image: class {}, location: { href: "" }, matchMedia: () => media,
+    performance: { now: () => 900 }, requestAnimationFrame, cancelAnimationFrame,
+  };
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)![1];
+  runInNewContext(script, context);
+  expect(requestAnimationFrame).not.toHaveBeenCalled();
+  runInNewContext('syncSources([{id:"local",creature:"crab",available:true,state:{animation:"running"}}])', context);
+  const root = nodes.get("#pets")!.children[0] as ReturnType<typeof element>;
+  expect(root.dataset.animation).toBe("running");
+  expect(root.style.transform).toBe("");
+  media.matches = false; onMotionChange?.();
+  expect(frames.size).toBe(1);
+  expect(root.style.transform).toContain("translateX");
+  media.matches = true; onMotionChange?.();
+  expect(cancelAnimationFrame).toHaveBeenCalledWith(0);
+  expect(frames.size).toBe(0);
+  expect(root.style.transform).toBe("");
+  runInNewContext('syncSources([{id:"local",creature:"crab",available:true,state:{animation:"waiting"}}])', context);
+  expect(root.dataset.animation).toBe("waiting");
+  expect(frames.size).toBe(0);
+  await service.stop();
+});

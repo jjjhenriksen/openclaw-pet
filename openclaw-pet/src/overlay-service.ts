@@ -250,6 +250,15 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
     let layoutKey="${size}:${Math.max(1, sourceCount)}:0:0";
     let lastStateAt=Date.now(),shutdownRequested=false;
     const renderers=new Map();
+    const motionPreference=typeof matchMedia==="function"?matchMedia("(prefers-reduced-motion: reduce)"):null;
+    let reducedMotion=motionPreference?.matches??false;
+    let animationFrame;
+    const animationTime=()=>typeof performance==="undefined"?Date.now():performance.now();
+    motionPreference?.addEventListener("change",()=>{
+      reducedMotion=motionPreference.matches;
+      if(animationFrame!==undefined){cancelAnimationFrame(animationFrame);animationFrame=undefined;}
+      draw(animationTime());
+    });
     toggle.onclick=()=>{
       const hidden=document.body.classList.toggle("pet-hidden");
       toggle.textContent=hidden?"Show":"Hide";
@@ -322,12 +331,15 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
       // the DOM. This keeps the geometry vector-rendered through WebKit.
       const canvas=creature?null:document.createElement("canvas");
       if(canvas)root.append(canvas);
-      if(!creature)sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp";
       // The native WebView can retain image responses across plugin reloads;
       // version creature assets so a renderer refresh cannot show an older
       // silhouette after the Lobsterdex geometry changes.
       const renderer={root,canvas,context:canvas?canvas.getContext("2d"):null,sheet,source,animation:"idle",frame:0,nextFrameAt:0,width:0,height:0,creature};
       renderers.set(source.id,renderer);
+      if(!creature){
+        sheet.onload=()=>{if(reducedMotion&&renderers.get(source.id)===renderer)draw(animationTime());};
+        sheet.src="/assets/"+encodeURIComponent(source.id)+"/spritesheet.webp";
+      }
       if(creature){
         fetch("/creatures/"+encodeURIComponent(creature)+".svg?v=lobsterdex-20260913",{cache:"no-store"})
           .then(response=>response.ok?response.text():Promise.reject(new Error("creature unavailable")))
@@ -353,6 +365,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
         renderer.root.remove();
         renderers.delete(id);
       }
+      if(reducedMotion)draw(animationTime());
     }
     function applyLayout(layout){
       const petSize=layout&&layout.petSize||${size};
@@ -385,11 +398,13 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
       setTimeout(poll,75);
     }
     function draw(time){
+      animationFrame=undefined;
       for(const renderer of renderers.values()){
         const animationName=renderer.source.state.animation;
         const next=animations[animationName]||animations.idle;
         if(renderer.animation!==animationName){renderer.animation=animationName;renderer.frame=0;renderer.nextFrameAt=time;}
-        if(time>=renderer.nextFrameAt){renderer.frame=(renderer.frame+1)%next.frames;renderer.nextFrameAt=time+next.durations[renderer.frame];}
+        if(reducedMotion)renderer.frame=0;
+        else if(time>=renderer.nextFrameAt){renderer.frame=(renderer.frame+1)%next.frames;renderer.nextFrameAt=time+next.durations[renderer.frame];}
         if(!renderer.creature&&renderer.sheet.complete&&renderer.sheet.naturalWidth){
           const nextWidth=renderer.canvas.clientWidth,nextHeight=renderer.canvas.clientHeight;
           if(renderer.width!==nextWidth||renderer.height!==nextHeight){renderer.width=renderer.canvas.width=nextWidth;renderer.height=renderer.canvas.height=nextHeight;}
@@ -400,14 +415,14 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
         }
         if(renderer.creature){
           renderer.root.dataset.animation=animationName;
-          renderer.root.style.transform=animationName.includes("running")?"translateX("+(Math.sin(time/180)*3)+"px)":animationName==="jumping"?"translateY("+(Math.sin(time/160)*6)+"px)":"";
+          renderer.root.style.transform=reducedMotion?"":animationName.includes("running")?"translateX("+(Math.sin(time/180)*3)+"px)":animationName==="jumping"?"translateY("+(Math.sin(time/160)*6)+"px)":"";
         }
       }
-      requestAnimationFrame(draw);
+      if(!reducedMotion)animationFrame=requestAnimationFrame(draw);
     }
     setInterval(checkWatchdog,250);
     poll();
-    requestAnimationFrame(draw);
+    draw(animationTime());
   </script>
 </body>
 </html>`;
