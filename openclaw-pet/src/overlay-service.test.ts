@@ -340,6 +340,29 @@ describe("overlay lifecycle", () => {
     await manager.stop();
   });
 
+  it("restarts active helpers when built-in appearance changes while preserving live size updates", async () => {
+    const started: StartOverlayParams[] = [];
+    const stop = vi.fn(async () => undefined);
+    const manager = createOverlayManager(() => ({
+      isActive: () => true,
+      start: async (startParams) => { started.push(startParams); }, stop,
+    }));
+    const base = params();
+    await manager.start({ ...base, assets: [{ id: "local", label: "Local", creature: "crab" }] });
+    const lobster = { id: "local", label: "Local", creature: "lobster" as const, lobster: { flavor: "blue" as const } };
+    await manager.start({ ...base, assets: [lobster] });
+    expect(started).toHaveLength(2);
+    expect(started[1]?.assets[0]).toMatchObject({ creature: "lobster", lobster: { flavor: "blue" } });
+    expect(stop).toHaveBeenCalledOnce();
+    await manager.start({ ...base, assets: [{ ...lobster, lobster: { flavor: "gold" } }] });
+    expect(started).toHaveLength(3);
+    expect(stop).toHaveBeenCalledTimes(2);
+    await manager.start({ ...base, size: 320, assets: [{ ...lobster, lobster: { flavor: "gold" } }] });
+    expect(started).toHaveLength(3);
+    expect(stop).toHaveBeenCalledTimes(2);
+    await manager.stop();
+  });
+
   it("updates live helper offsets when runtime sizes change", async () => {
     const started: StartOverlayParams[] = [];
     let stopCount = 0;

@@ -761,7 +761,7 @@ export function createOverlayService(overrides: Partial<OverlayRuntime> = {}): O
 
 function overlayDisplayKey(params: StartOverlayParams): string {
   return JSON.stringify({
-    assets: params.assets.map(({ id, assetDir }) => ({ id, assetDir })),
+    assets: params.assets.map(({ id, assetDir, creature, lobster }) => ({ id, assetDir, creature, lobster })),
     corner: params.corner,
     showStatus: params.showStatus ?? true,
     clickThrough: params.clickThrough ?? false,

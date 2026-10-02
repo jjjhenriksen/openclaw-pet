@@ -127,6 +127,54 @@ describe("pet source configuration", () => {
 });
 
 describe("pull-based remote sources", () => {
+  it.each([undefined, "", " \t\n"])("does not dispatch with a missing or blank required token (%j)", async (token) => {
+    const fetchRemote = vi.fn(async () => toBridgeSnapshot(localSnapshot));
+    const warn = vi.fn();
+    const coordinator = new SourceCoordinator({
+      config, getLocalSnapshot: () => localSnapshot, logger: { warn }, fetchRemote,
+      env: { REMOTE_PET_TOKEN: token }, validateAssetDir: () => true,
+    });
+    await expect(coordinator.pollOnce("remote")).resolves.toBe(false);
+    await expect(coordinator.pollOnce("remote")).resolves.toBe(false);
+    expect(fetchRemote).not.toHaveBeenCalled();
+    expect(coordinator.snapshot().sources[1]).toMatchObject({ available: false });
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      "OpenClaw Pet source remote has a missing or blank required token. Check the configured token environment variable.",
+    );
+  });
+
+  it("recovers when the configured token becomes available and stops dispatch after it is removed", async () => {
+    const env: NodeJS.ProcessEnv = {};
+    const fetchRemote = vi.fn(async () => toBridgeSnapshot(localSnapshot));
+    const warn = vi.fn();
+    const info = vi.fn();
+    const coordinator = new SourceCoordinator({
+      config, getLocalSnapshot: () => localSnapshot, logger: { warn, info }, fetchRemote,
+      env, validateAssetDir: () => true,
+    });
+    await expect(coordinator.pollOnce("remote")).resolves.toBe(false);
+    env.REMOTE_PET_TOKEN = "fixture-secret";
+    await expect(coordinator.pollOnce("remote")).resolves.toBe(true);
+    expect(fetchRemote).toHaveBeenCalledOnce();
+    expect(info).toHaveBeenCalledWith("OpenClaw Pet source remote is available again.");
+    delete env.REMOTE_PET_TOKEN;
+    await expect(coordinator.pollOnce("remote")).resolves.toBe(false);
+    expect(fetchRemote).toHaveBeenCalledOnce();
+    expect(coordinator.snapshot().sources[1]).toMatchObject({ available: false });
+    expect(JSON.stringify([warn.mock.calls, info.mock.calls, coordinator.snapshot()])).not.toContain("fixture-secret");
+  });
+
+  it("still dispatches anonymous pulls when no token is configured", async () => {
+    const fetchRemote = vi.fn(async () => toBridgeSnapshot(localSnapshot));
+    const coordinator = new SourceCoordinator({
+      config: { sources: [{ id: "remote", creature: "crab", gateway: { url: "https://gateway.example.test/snapshot" } }] },
+      getLocalSnapshot: () => localSnapshot, logger: { warn: vi.fn() }, fetchRemote,
+      env: {}, validateAssetDir: () => true,
+    });
+    await expect(coordinator.pollOnce("remote")).resolves.toBe(true);
+    expect(fetchRemote).toHaveBeenCalledWith(expect.objectContaining({ token: undefined }));
+  });
+
   it("performs an authenticated HTTP pull from the configured bridge URL", async () => {
     const remoteSnapshot = toBridgeSnapshot({ ...localSnapshot, animation: "waiting", changedAt: 300 });
     let authorization: string | undefined;
@@ -235,6 +283,7 @@ describe("pull-based remote sources", () => {
       getLocalSnapshot: () => localSnapshot,
       logger: { warn },
       fetchRemote,
+      env: { REMOTE_PET_TOKEN: "fixture-token" },
       validateAssetDir: () => true,
     });
 
@@ -253,7 +302,7 @@ describe("remote polling lifecycle", () => {
     const old = new Promise((resolve, reject) => { resolveOld = resolve; failOld = reject; });
     const fetchRemote = vi.fn().mockReturnValueOnce(old).mockResolvedValue(toBridgeSnapshot({ ...localSnapshot, changedAt: 500 }));
     const warn = vi.fn();
-    const coordinator = new SourceCoordinator({ config, getLocalSnapshot: () => localSnapshot, logger: { warn }, fetchRemote, validateAssetDir: () => true });
+    const coordinator = new SourceCoordinator({ config, getLocalSnapshot: () => localSnapshot, logger: { warn }, fetchRemote, env: { REMOTE_PET_TOKEN: "fixture-token" }, validateAssetDir: () => true });
     coordinator.start();
     coordinator.stop();
     coordinator.start();
