@@ -218,7 +218,7 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
     button:focus-visible{outline:2px solid #b9c5ff;outline-offset:3px;border-radius:3px}
     ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:5px;overflow:auto;max-height:176px}
     .item{display:grid;grid-template-columns:6px minmax(0,1fr) auto;column-gap:7px;font-size:11px;line-height:14px;align-items:start}
-    .item[data-openable="true"]{cursor:pointer;border-radius:6px;padding:2px;margin:-2px}.item[data-openable="true"]:hover,.item[data-openable="true"]:focus-visible{background:rgba(185,197,255,.14);outline:none}
+    .open{min-width:0;width:100%;text-align:left;color:inherit;border-radius:4px}.open:hover,.open:focus-visible{background:rgba(185,197,255,.14)}
     .copy{min-width:0}.name{display:block;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status{display:block;color:#d1d5db;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .dot{width:6px;height:6px;border-radius:50%;background:#9ca3af;flex:0 0 auto;margin-top:4px}
     .active .dot{background:#8ab4ff}.success .dot{background:#65d6a0}.error .dot{background:#f38b8b}
@@ -309,14 +309,18 @@ function overlayHtml(size: number, sourceCount: number, showStatus: boolean, sho
         const ack=document.createElement("button"); ack.className="ack"; ack.type="button"; ack.textContent=run.unread?"Mark read":""; ack.setAttribute("aria-label","Mark "+session+" read");
         ack.onclick=async(event)=>{event.stopPropagation();if(!run.unread)return;try{await fetch("/ack-run?id="+encodeURIComponent(run.id),{method:"POST"});}catch{}};
         const openable=Boolean(source.openable&&run.session?.agentId);
-        if(openable){row.dataset.openable="true";row.tabIndex=0;row.setAttribute("role","button");row.setAttribute("aria-label","Open "+session);const open=()=>{location.href="openclaw-pet://open-run?id="+encodeURIComponent(run.id)};row.onclick=open;row.onkeydown=(event)=>{if(event.target===row&&(event.key==="Enter"||event.key===" ")){event.preventDefault();open()}};}
-        row.append(dot,copy);
+        if(openable){
+          row.dataset.openable="true";
+          const open=document.createElement("button");open.className="open";open.type="button";open.setAttribute("aria-label","Open "+session);
+          open.onclick=()=>{location.href="openclaw-pet://open-run?id="+encodeURIComponent(run.id)};
+          open.append(copy);row.append(dot,open);
+        }else row.append(dot,copy);
         if(source.openable&&run.unread)row.append(ack);
         return row;
       }):[(()=>{const row=document.createElement("li");row.className="item";row.textContent="No active sessions";return row;})()]));
       if(focusedKey){
         const row=Array.from(events.children).find(node=>node.dataset.runKey===focusedKey);
-        const target=focusedRead?row?.querySelector(".ack")||row:row;
+        const target=focusedRead?row?.querySelector(".ack")||row?.querySelector(".open")||toggle:row?.querySelector(".open")||toggle;
         target?.focus({preventScroll:true});
       }
     }
