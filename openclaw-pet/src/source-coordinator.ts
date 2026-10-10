@@ -139,8 +139,11 @@ async function defaultFetchRemote(source: { url: string; token?: string; timeout
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), source.timeoutMs);
   timeout.unref();
+  let response: Response | undefined;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let complete = false;
   try {
-    const response = await fetch(source.url, {
+    response = await fetch(source.url, {
       cache: "no-store",
       redirect: "error",
       signal: controller.signal,
@@ -150,17 +153,14 @@ async function defaultFetchRemote(source: { url: string; token?: string; timeout
     const declaredLength = Number(response.headers.get("content-length"));
     if (Number.isFinite(declaredLength) && declaredLength > MAX_BRIDGE_RESPONSE_BYTES) throw new Error("bridge response too large");
     if (!response.body) throw new Error("empty bridge response");
-    const reader = response.body.getReader();
+    reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
     let total = 0;
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) { complete = true; break; }
       total += value.byteLength;
-      if (total > MAX_BRIDGE_RESPONSE_BYTES) {
-        await reader.cancel();
-        throw new Error("bridge response too large");
-      }
+      if (total > MAX_BRIDGE_RESPONSE_BYTES) throw new Error("bridge response too large");
       chunks.push(value);
     }
     const body = new Uint8Array(total);
@@ -171,6 +171,14 @@ async function defaultFetchRemote(source: { url: string; token?: string; timeout
     }
     return JSON.parse(new TextDecoder().decode(body));
   } finally {
+    if (!complete) {
+      controller.abort();
+      try {
+        if (reader) await reader.cancel();
+        else await response?.body?.cancel();
+      } catch { /* Preserve the original failure when transport cleanup fails. */ }
+    }
+    reader?.releaseLock();
     clearTimeout(timeout);
   }
 }
