@@ -316,3 +316,57 @@ describe("remote polling lifecycle", () => {
     coordinator.stop();
   });
 });
+
+describe("remote HTTP body cleanup", () => {
+  function coordinator() {
+    return new SourceCoordinator({
+      config: { sources: [{ id: "remote", creature: "crab", gateway: { url: "https://fixture.test/snapshot" } }] },
+      getLocalSnapshot: () => localSnapshot, logger: { warn: vi.fn() }, validateAssetDir: () => true,
+    });
+  }
+
+  it.each(["http-error", "declared-oversize"])("cancels a response rejected before reading (%s)", async (kind) => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({ cancel });
+    const response = new Response(body, {
+      status: kind === "http-error" ? 503 : 200,
+      headers: kind === "declared-oversize" ? { "content-length": String(MAX_BRIDGE_RESPONSE_BYTES + 1) } : {},
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
+    try {
+      await expect(coordinator().pollOnce("remote")).resolves.toBe(false);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(body.locked).toBe(false);
+      expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    } finally { fetchMock.mockRestore(); }
+  });
+
+  it.each(["success", "invalid-json", "overflow", "read-error"])("releases the reader after %s", async (kind) => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        if (kind === "read-error") { controller.error(new Error("private transport detail")); return; }
+        const text = kind === "success" ? JSON.stringify(toBridgeSnapshot(localSnapshot))
+          : kind === "overflow" ? "x".repeat(MAX_BRIDGE_RESPONSE_BYTES + 1) : "{";
+        controller.enqueue(new TextEncoder().encode(text));
+        if (kind !== "overflow") controller.close();
+      },
+      cancel,
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(body));
+    try {
+      await expect(coordinator().pollOnce("remote")).resolves.toBe(kind === "success");
+      expect(body.locked).toBe(false);
+      if (kind === "overflow") expect(cancel).toHaveBeenCalledOnce();
+    } finally { fetchMock.mockRestore(); }
+  });
+
+  it("retains unavailable reporting when body cleanup itself fails", async () => {
+    const body = new ReadableStream<Uint8Array>({ cancel: () => Promise.reject(new Error("cleanup failed")) });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(body, { status: 503 }));
+    try {
+      await expect(coordinator().pollOnce("remote")).resolves.toBe(false);
+      expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    } finally { fetchMock.mockRestore(); }
+  });
+});
